@@ -166,6 +166,8 @@
     private int _hudTierCached = -1, _hudLaunchesCached = -1;
     private string _hudBallsText = "";
     private int _hudBallsCached = -1;
+    private string _hudEffectsText = "";
+    private (int, int, int) _hudEffectsCached = (-1, -1, -1);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -289,7 +291,35 @@
             _hudBallsCached = _engine.Balls;
             _hudBallsText = "Balls: " + new string('●', Math.Max(0, _engine.Balls));
         }
+        var effectsKey = ((int)Math.Ceiling(_engine.WidePaddleTime), (int)Math.Ceiling(_engine.SlowBallTime), _engine.StickyCharges);
+        if (effectsKey != _hudEffectsCached)
+        {
+            _hudEffectsCached = effectsKey;
+            _hudEffectsText = string.Join("  ",
+                new[]
+                {
+                    effectsKey.Item1 > 0 ? $"WIDE {effectsKey.Item1}s" : null,
+                    effectsKey.Item2 > 0 ? $"SLOW {effectsKey.Item2}s" : null,
+                    effectsKey.Item3 > 0 ? "STICKY" : null,
+                }.Where(s => s != null));
+        }
     }
+
+    private static string PowerUpColor(PowerUpKind k) => k switch
+    {
+        PowerUpKind.WidePaddle => "#22c55e",
+        PowerUpKind.SlowBall   => "#38bdf8",
+        PowerUpKind.ExtraBall  => "#f59e0b",
+        _                      => "#e879f9",
+    };
+
+    private static string PowerUpLetter(PowerUpKind k) => k switch
+    {
+        PowerUpKind.WidePaddle => "W",
+        PowerUpKind.SlowBall   => "S",
+        PowerUpKind.ExtraBall  => "+1",
+        _                      => "C",
+    };
 
     private async Task Render()
     {
@@ -367,11 +397,23 @@
             }
             await _ctx.SetGlobalAlphaAsync(1.0f);
 
-            // paddle
-            await _ctx.SetFillStyleAsync("#1fd6c4");
+            // falling power-ups: colored square + letter, catch with the paddle
+            foreach (var pu in _engine.PowerUps)
+            {
+                await _ctx.SetFillStyleAsync(PowerUpColor(pu.Kind));
+                await _ctx.FillRectAsync(pu.X - Engine.PowerUpR, pu.Y - Engine.PowerUpR, Engine.PowerUpR * 2, Engine.PowerUpR * 2);
+                await _ctx.SetFillStyleAsync("#0f172a");
+                await _ctx.SetFontAsync("bold 12px monospace");
+                await _ctx.SetTextAlignAsync(TextAlign.Center);
+                await _ctx.FillTextAsync(PowerUpLetter(pu.Kind), pu.X, pu.Y + 4);
+                await _ctx.SetTextAlignAsync(TextAlign.Left);
+            }
+
+            // paddle (turns green while widened)
+            await _ctx.SetFillStyleAsync(_engine.WidePaddleTime > 0 ? "#22c55e" : "#1fd6c4");
             await _ctx.FillRectAsync(
-                _engine.PaddleX - Engine.PaddleHalfWidth, _engine.PaddleY - Engine.PaddleHeight / 2,
-                Engine.PaddleHalfWidth * 2, Engine.PaddleHeight);
+                _engine.PaddleX - _engine.PaddleHalfWidthNow, _engine.PaddleY - Engine.PaddleHeight / 2,
+                _engine.PaddleHalfWidthNow * 2, Engine.PaddleHeight);
 
             // ball
             await _ctx.SetFillStyleAsync("#ffffff");
@@ -420,6 +462,12 @@
             {
                 await _ctx.SetFillStyleAsync("#f97316");
                 await _ctx.FillTextAsync(_hudComboText, 10, 96);
+            }
+            if (_hudEffectsText.Length > 0)
+            {
+                await _ctx.SetFontAsync("bold 13px monospace");
+                await _ctx.SetFillStyleAsync("#facc15");
+                await _ctx.FillTextAsync(_hudEffectsText, 10, _engine.Combo > 0 ? 118 : 96);
             }
 
             await _ctx.SetTextAlignAsync(TextAlign.Right);

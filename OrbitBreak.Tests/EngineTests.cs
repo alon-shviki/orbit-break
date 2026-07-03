@@ -151,6 +151,90 @@ public class EngineTests
     }
 
     [Fact]
+    public void PowerUp_CaughtByPaddle_AppliesEffect()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        e.PowerUps.Add(new PowerUp { X = 400, Y = e.PaddleY - 20, Kind = PowerUpKind.ExtraBall });
+
+        for (var i = 0; i < 30 && e.PowerUps.Count > 0; i++) e.Tick(1.0 / 60);
+
+        Assert.Empty(e.PowerUps);
+        Assert.Equal(Engine.StartingBalls + 1, e.Balls);
+    }
+
+    [Fact]
+    public void PowerUp_MissedByPaddle_FallsOffScreen()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 100; // far from the drop
+        e.PowerUps.Add(new PowerUp { X = 700, Y = e.PaddleY - 20, Kind = PowerUpKind.ExtraBall });
+
+        for (var i = 0; i < 120; i++) e.Tick(1.0 / 60);
+
+        Assert.Empty(e.PowerUps);
+        Assert.Equal(Engine.StartingBalls, e.Balls); // nothing applied
+    }
+
+    [Fact]
+    public void StickyPaddle_TurnsNextContactIntoACatch()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        e.StickyCharges = 1;
+        e.BallX = 400; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200;
+        e.InFlight = true;
+
+        e.Tick(1.0 / 60);
+
+        Assert.False(e.InFlight, "sticky contact should end the flight as a catch, ready to re-aim");
+        Assert.Equal(Engine.StartingBalls, e.Balls); // a catch, not a loss
+        Assert.Equal(0, e.StickyCharges);
+    }
+
+    [Fact]
+    public void WidePaddle_WidensTheCatchZone()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        e.WidePaddleTime = Engine.PowerUpDuration;
+        // outside the normal ±70 half-width, inside the widened ±105
+        e.BallX = 495; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200;
+        e.InFlight = true;
+
+        e.Tick(1.0 / 60);
+
+        Assert.True(e.InFlight);
+        Assert.True(e.BallVy < 0, "widened paddle should have caught a ball the normal paddle misses");
+    }
+
+    [Fact]
+    public void KillingManyBlocks_DropsAtLeastOnePowerUp()
+    {
+        var e = NewEngine(seed: 1);
+        e.Wells.Clear();
+        // explosive at the center of a tight cluster — the chain kills all of them, rolling
+        // the seeded 15% drop chance ~30 times (P(no drop) ≈ 0.85^30 < 1%)
+        e.Blocks = new List<Block> { new() { X = 400, Y = 300, W = 10, H = 10, Kind = BlockKind.Explosive, Hp = 1 } };
+        for (var i = 0; i < 30; i++)
+            e.Blocks.Add(new Block { X = 380 + i, Y = 305, W = 8, H = 8, Kind = BlockKind.Standard, Hp = 1 });
+        e.BallX = 395; e.BallY = 305; e.BallVx = 100; e.BallVy = 0;
+        e.InFlight = true;
+
+        e.Tick(1.0 / 60);
+
+        Assert.NotEmpty(e.PowerUps);
+    }
+
+    [Fact]
     public void HazardReachingPaddleLine_EndsRun()
     {
         var e = NewEngine();
