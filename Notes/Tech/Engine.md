@@ -29,7 +29,11 @@ All constants sit at the top of `Engine.cs` (ball radius, paddle width/speed, la
 
 ## Known issues
 
-- **Ball speed is uncapped** — gravity wells add velocity every frame the ball spends in their influence radius with no clamp anywhere. Reported as general flight stutter (issue #10) and, more concretely, as the ball tunneling straight through the paddle (issue #11): the paddle check is a discrete post-move position test, and a fast enough ball can cross the whole ~26px collision band in a single tick.
+- **Frame pacing** (issue #10) — two un-batched JS interop input calls per frame plus the dt clamp's slow-motion behaviour under sustained low fps still need attention; the runaway-speed contributor is fixed (see below).
+
+## Fixed
+
+- **Ball speed cap + paddle tunneling** (issue #11) — speed is now clamped to `MaxBallSpeed` (1200 px/s) every tick, and the paddle check is *swept*: it tests the path the ball travelled this frame against the paddle band and bounces at the crossing point, so no speed inside the cap can tunnel through. Block collision remains a discrete check (missing a block costs nothing, unlike missing the paddle).
 
 ## Skipped for now
 
