@@ -18,14 +18,14 @@ Layout of the game code in `OrbitBreak.Client/` and where the tuning knobs live.
 - **Paddle**: horizontal rect, `PaddleHalfWidth` (55) either side of `PaddleX`, moved by A/D or ←/→ at `PaddleSpeed` (640 px/s). While no ball is in flight, the ball rests on the paddle and slides with it, ready to launch. Added in issue #8 to replace an invisible auto-catch zone that gave the player nothing to actually do.
 - **Wells**: inverse-square pull inside `Influence` radius (accel floor stops it exploding near center); solid `Core` acts as an elastic bumper.
 - **Combo**: +1 per *distinct well entered* during a flight; multiplier `1 + 0.5 × combo`; resets when the flight ends. This approximates the design doc's "per well-assisted deflection" — refine after feel-testing (marked with a `ponytail:` comment in code).
-- **Paddle bounce**: hitting the paddle reflects the ball back up into play (Arkanoid-style — hit offset from paddle center steers the bounce angle) and the flight continues; missing it entirely (ball passes below the paddle line) ends the flight and costs a ball (`StartingBalls` = 3). Flights over 25 s are recalled as a safety net (no ball lost — guards against a ball trapped in a stable orbit that never comes back down).
+- **Paddle bounce**: hitting the paddle reflects the ball back up into play (Arkanoid-style — hit offset from paddle center steers the bounce angle) and the flight continues; missing it entirely (ball passes below the paddle line) ends the flight and costs a ball (`StartingBalls` = 3). Every paddle bounce resets the 25 s orbit-trap recall timer, so recall (no ball lost) only fires for a ball genuinely stuck orbiting a well, never during active play (issue #2).
 - **Blocks**: standard (1 hit / 10 pts), armored (3 hits / 30), explosive (20, chains within 80 px), hazard (50, descends 30 px per launch; reaching the paddle line ends the run).
-- **Tier shift**: constellation regenerates one tier harder every 5 launches or on full clear.
+- **Tier shift**: full clear advances the tier and regenerates *immediately mid-flight* (Block Breaker style — no waiting out the flight in an empty arena); every 5 launches the constellation also reshuffles one tier harder as a pity-shift for stuck players (issue #2).
 - **Seeding**: `Engine.Reset(seed)` is fully deterministic — a future daily-seed mode needs no new infra.
 
 ## Tuning knobs
 
-All constants sit at the top of `Engine.cs` (ball radius, paddle width/speed, launches per tier, hazard step, explosion radius, flight timeout) and in `Constellation.Generate` (well strength/influence, block density, kind chances). The gravity falloff curve and generator algorithm are open questions in [[Design/Core Loop]] — grid placement is deliberate laziness, switch to Poisson-disc if constellations feel too regular.
+All constants sit at the top of `Engine.cs` (ball radius, paddle width/speed, launches per tier, hazard step, explosion radius, flight timeout) and in `Constellation.Generate` (well strength/influence, block density, kind chances). Current values are simulation-tuned — see [[Tuning]] for the method, the numbers, and why (issue #2). Generator algorithm remains an open question in [[Design/Core Loop]] — grid placement is deliberate laziness, switch to Poisson-disc if constellations feel too regular.
 
 ## Known issues
 
