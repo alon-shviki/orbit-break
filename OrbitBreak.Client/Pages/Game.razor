@@ -235,21 +235,20 @@
 
     private async Task<double> PollInputAsync()
     {
-        var axis = await JS.InvokeAsync<double>("gameInterop.getPaddleAxis");
-
-        // [down, x, y, startX, startY, releasedEdge, releaseX, releaseY]
-        var p = await JS.InvokeAsync<double[]>("gameInterop.getPointerState");
+        // [axis, down, x, y, startX, startY, releasedEdge, releaseX, releaseY] — one round-trip (issue #10)
+        var p = await JS.InvokeAsync<double[]>("gameInterop.getInputState");
+        var axis = p[0];
         _aiming = false;
         if (_engine.InFlight) return axis;
 
-        if (p[0] != 0)
+        if (p[1] != 0)
         {
-            var (vx, vy, valid) = AimVector(p[3], p[4], p[1], p[2]);
+            var (vx, vy, valid) = AimVector(p[4], p[5], p[2], p[3]);
             if (valid) { _aiming = true; _aimVx = vx; _aimVy = vy; }
         }
-        if (p[5] != 0)
+        if (p[6] != 0)
         {
-            var (vx, vy, valid) = AimVector(p[3], p[4], p[6], p[7]);
+            var (vx, vy, valid) = AimVector(p[4], p[5], p[7], p[8]);
             if (valid) _engine.Launch(vx, vy);
         }
         return axis;
