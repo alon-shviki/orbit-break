@@ -18,5 +18,6 @@ Concept → playable. Roughly in order.
 - [x] Playtest & tune: gravity falloff, launch power, paddle speed/width, tier curve (issue #2 — headless bot simulation, see [[Tech/Tuning]]; wells made escapable, recall timer resets on paddle touch, mid-flight clear advance, paddle 760/±70)
 - [x] Fix ball-speed cap + paddle tunneling at high speed (issues #10, #11 — speed cap + swept paddle collision + single-round-trip input interop + rAF busy guard)
 - [x] Moving blocks at higher tiers (issue #4 — tier 4+, stair-stepped mover chance, wall-bouncing drift, hazards never drift)
+- [x] Fix `finish-issue` script: CI-watch retry + merge without `--delete-branch` inside worktrees (issue #15 — same fix should go upstream to the portal's copy)
 - [x] Wire into `docker-compose.yml` (`orbit-break-client` :8081, portal PR #23) + nginx proxy for scores/leaderboard (`nginx.conf`)
 - [x] `Games/Orbit Break.md` hub page status update (portal PR #23)

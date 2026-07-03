@@ -31,12 +31,22 @@ PR_URL=$(gh pr create --fill --base main --body "Closes #${ISSUE_NUM}")
 PR_NUM=$(basename "$PR_URL")
 echo "PR: $PR_URL"
 echo "Waiting for CI..."
-gh pr checks "$PR_NUM" --watch
-gh pr merge "$PR_NUM" --squash --delete-branch
+# checks register asynchronously after pr create — retry the watch until they exist (issue #15)
+sleep 15
+for attempt in 1 2 3 4 5; do
+  if gh pr checks "$PR_NUM" --watch; then break; fi
+  [ "$attempt" -eq 5 ] && { echo "CI never registered or failed — resolve manually."; exit 1; }
+  echo "No checks reported yet (attempt $attempt) — retrying..."
+  sleep 20
+done
+# no --delete-branch: it tries to check out main *inside the worktree* and dies (issue #15);
+# the remote branch is deleted explicitly after the worktree is cleaned up
+gh pr merge "$PR_NUM" --squash
 
 # Clean up worktree and sync main
 cd "$MAIN_REPO"
 git worktree remove "$WORKTREE" --force
 git checkout main
 git pull origin main
+git push origin --delete "$BRANCH" 2>/dev/null || true
 echo "Done — worktree removed, main is up to date."
