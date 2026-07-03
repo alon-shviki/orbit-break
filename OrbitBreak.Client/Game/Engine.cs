@@ -34,6 +34,14 @@ public class Particle
     public string Color = "#fff";
 }
 
+public enum PowerUpKind { WidePaddle, SlowBall, ExtraBall, Sticky }
+
+public class PowerUp
+{
+    public double X, Y;
+    public PowerUpKind Kind;
+}
+
 /// <summary>Whole simulation: ball, wells, blocks, combo, difficulty. No rendering, no interop — testable head-less.</summary>
 public class Engine
 {
@@ -48,6 +56,10 @@ public class Engine
     public const double MaxBallSpeed = 1200;    // wells can slingshot above launch speed (max 1000) but not runaway
     public const double HazardStep = 30;        // px a hazard block descends per launch
     public const double ExplosionRadius = 80;
+    public const double PowerUpChance = 0.15;   // drop roll per killed block
+    public const double PowerUpFallSpeed = 130; // px/s straight down — must be caught with the paddle
+    public const double PowerUpDuration = 10;   // seconds for the timed effects (wide, slow)
+    public const double PowerUpR = 11;          // pickup half-size for catch/draw
 
     public double Width, Height;
     public double PaddleX;
@@ -56,7 +68,13 @@ public class Engine
     public List<Well> Wells = new();
     public List<Block> Blocks = new();
     public List<Particle> Particles = new();
+    public List<PowerUp> PowerUps = new();
     public Queue<(double X, double Y)> Trail = new();
+
+    // active power-up effects
+    public double WidePaddleTime, SlowBallTime;
+    public int StickyCharges;
+    public double PaddleHalfWidthNow => WidePaddleTime > 0 ? PaddleHalfWidth * 1.5 : PaddleHalfWidth;
 
     public double BallX, BallY, BallVx, BallVy;
     public bool InFlight;
@@ -84,6 +102,9 @@ public class Engine
         GameOverReason = "";
         Shake = 0;
         Particles.Clear();
+        PowerUps.Clear();
+        WidePaddleTime = SlowBallTime = 0;
+        StickyCharges = 0;
         Trail.Clear();
         _wellsThisFlight.Clear();
         InFlight = false;
@@ -123,7 +144,25 @@ public class Engine
 
         if (GameOver) return;
 
-        PaddleX = Math.Clamp(PaddleX + paddleAxis * PaddleSpeed * dt, PaddleHalfWidth, Width - PaddleHalfWidth);
+        PaddleX = Math.Clamp(PaddleX + paddleAxis * PaddleSpeed * dt, PaddleHalfWidthNow, Width - PaddleHalfWidthNow);
+
+        if (WidePaddleTime > 0) WidePaddleTime -= dt;
+        if (SlowBallTime > 0) SlowBallTime -= dt;
+
+        // power-ups fall straight down and must be caught with the paddle — even between flights
+        for (var i = PowerUps.Count - 1; i >= 0; i--)
+        {
+            var pu = PowerUps[i];
+            pu.Y += PowerUpFallSpeed * dt;
+            if (pu.Y - PowerUpR > Height) { PowerUps.RemoveAt(i); continue; }
+            if (pu.Y + PowerUpR >= PaddleY - PaddleHeight / 2 && pu.Y - PowerUpR <= PaddleY + PaddleHeight / 2
+                && pu.X + PowerUpR >= PaddleX - PaddleHalfWidthNow && pu.X - PowerUpR <= PaddleX + PaddleHalfWidthNow)
+            {
+                Apply(pu.Kind);
+                Emit(pu.X, pu.Y, "#facc15", 8);
+                PowerUps.RemoveAt(i);
+            }
+        }
 
         if (!InFlight)
         {
@@ -158,12 +197,14 @@ public class Engine
             }
         }
 
-        // cap speed: wells add velocity every frame with no natural limit (issues #10, #11)
+        // cap speed: wells add velocity every frame with no natural limit (issues #10, #11);
+        // an active slow-ball pickup halves the cap, which actively brakes a fast ball
+        var speedCap = SlowBallTime > 0 ? MaxBallSpeed * 0.5 : MaxBallSpeed;
         var ballSpeed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
-        if (ballSpeed > MaxBallSpeed)
+        if (ballSpeed > speedCap)
         {
-            BallVx *= MaxBallSpeed / ballSpeed;
-            BallVy *= MaxBallSpeed / ballSpeed;
+            BallVx *= speedCap / ballSpeed;
+            BallVy *= speedCap / ballSpeed;
         }
 
         var prevX = BallX; var prevY = BallY;
@@ -190,9 +231,17 @@ public class Engine
             // X position at the moment the ball's bottom edge crossed the paddle's top
             var t = Math.Clamp((paddleTop - (prevY + BallR)) / Math.Max(BallY - prevY, 1e-9), 0, 1);
             var xAtCross = prevX + (BallX - prevX) * t;
-            if (xAtCross + BallR >= PaddleX - PaddleHalfWidth && xAtCross - BallR <= PaddleX + PaddleHalfWidth)
+            if (xAtCross + BallR >= PaddleX - PaddleHalfWidthNow && xAtCross - BallR <= PaddleX + PaddleHalfWidthNow)
             {
-                var offset = Math.Clamp((xAtCross - PaddleX) / PaddleHalfWidth, -1, 1);
+                if (StickyCharges > 0)
+                {
+                    // sticky pickup: this contact is a guaranteed catch — ball returns to the
+                    // paddle for a fresh aimed launch instead of bouncing
+                    StickyCharges--;
+                    EndFlight(caught: true);
+                    return;
+                }
+                var offset = Math.Clamp((xAtCross - PaddleX) / PaddleHalfWidthNow, -1, 1);
                 var speed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
                 BallVx = offset * speed;
                 BallVy = -Math.Sqrt(Math.Max(speed * speed - BallVx * BallVx, speed * speed * 0.25));
@@ -252,6 +301,13 @@ public class Engine
         Score += (int)(b.Value * Multiplier);
         Emit(b.CenterX, b.CenterY, ColorOf(b.Kind), 10);
 
+        if (_rng.NextDouble() < PowerUpChance)
+            PowerUps.Add(new PowerUp
+            {
+                X = b.CenterX, Y = b.CenterY,
+                Kind = (PowerUpKind)_rng.Next(4),
+            });
+
         if (b.Kind == BlockKind.Explosive)
         {
             Shake = 0.25;
@@ -262,6 +318,17 @@ public class Engine
                 var dx = o.CenterX - b.CenterX; var dy = o.CenterY - b.CenterY;
                 if (dx * dx + dy * dy < ExplosionRadius * ExplosionRadius) KillBlock(o);
             }
+        }
+    }
+
+    private void Apply(PowerUpKind kind)
+    {
+        switch (kind)
+        {
+            case PowerUpKind.WidePaddle: WidePaddleTime = PowerUpDuration; break;
+            case PowerUpKind.SlowBall:   SlowBallTime = PowerUpDuration; break;
+            case PowerUpKind.ExtraBall:  Balls++; break;
+            case PowerUpKind.Sticky:     StickyCharges++; break;
         }
     }
 

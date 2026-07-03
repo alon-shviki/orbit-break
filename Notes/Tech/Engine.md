@@ -21,6 +21,7 @@ Layout of the game code in `OrbitBreak.Client/` and where the tuning knobs live.
 - **Paddle bounce**: hitting the paddle reflects the ball back up into play (Arkanoid-style — hit offset from paddle center steers the bounce angle) and the flight continues; missing it entirely (ball passes below the paddle line) ends the flight and costs a ball (`StartingBalls` = 3). Every paddle bounce resets the 25 s orbit-trap recall timer, so recall (no ball lost) only fires for a ball genuinely stuck orbiting a well, never during active play (issue #2).
 - **Blocks**: standard (1 hit / 10 pts), armored (3 hits / 30), explosive (20, chains within 80 px), hazard (50, descends 30 px per launch; reaching the paddle line ends the run).
 - **Tier shift**: full clear advances the tier and regenerates *immediately mid-flight* (Block Breaker style — no waiting out the flight in an empty arena); every 5 launches the constellation also reshuffles one tier harder as a pity-shift for stuck players (issue #2).
+- **Power-ups** (issue #12): each killed block has a seeded 15% chance to drop a pickup that falls straight down (130 px/s) and must be *caught with the paddle* — chase-the-pickup vs. guard-the-ball tension, per [[Design/Breakout Research]]. Four kinds, all positive for now: **W** wide paddle (×1.5 width, 10 s), **S** slow ball (speed cap halved for 10 s — actively brakes a fast ball), **+1** extra ball (instant), **C** sticky (one charge: next paddle contact is a guaranteed catch, giving a fresh aimed launch — extra valuable here because launches are aimed). Negative pickups (narrow/fast) are deliberate future spice.
 - **Seeding**: `Engine.Reset(seed)` is fully deterministic — a future daily-seed mode needs no new infra.
 
 ## Tuning knobs
@@ -40,6 +41,5 @@ _None currently tracked here — check the GitHub issue list._
 ## Skipped for now
 
 - **Ball variants** (heavy / split / phase) — own task in [[Tasks]]; design open question (picked between launches vs. mid-flight) still unresolved.
-- **Power-ups** (transient pickups: wider paddle, extra ball, slower ball, sticky paddle) — issue #12; distinct from ball variants above, which are a persistent per-run pick rather than a dropped-from-a-block temporary effect.
 - **Moving blocks** — "occasional moving blocks" from the design doc; add once base feel is tuned.
 - **Juice extras** — particles, trail, and screen shake are in; sound and bigger effects are a later pass.
