@@ -15,10 +15,12 @@ Full portal stack (auth + leaderboard) comes via the portal repo's `docker compo
 
 ### Design
 - [[Design/Core Loop]] — launch/orbit/combo loop, systems, block & ball variety, scope
+- [[Design/Breakout Research]] — what the classics teach, what this game borrows vs. keeps unique
 
 ### Tech
 - [[Tech/Architecture]] — stack, portal integration contract, build & run
 - [[Tech/Engine]] — game code layout, mechanics as implemented, tuning knobs
+- [[Tech/Tuning]] — headless-bot playtest method, tuned numbers and why
 
 ### Work
 - [[Tasks]] — pending tasks to go from concept to playable
