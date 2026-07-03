@@ -39,7 +39,9 @@ public class Engine
 {
     // ── tuning knobs (all need playtesting — see Notes/Design/Core Loop.md open questions) ──
     public const double BallR = 7;
-    public const double CatchHalf = 110;        // half-width of the catch zone under the launcher
+    public const double PaddleHalfWidth = 55;   // half-width of the controllable paddle
+    public const double PaddleHeight = 12;
+    public const double PaddleSpeed = 640;      // px/s, A/D or ←/→
     public const int    LaunchesPerTier = 5;    // constellation regenerates one tier harder every N launches
     public const int    StartingBalls = 3;
     public const double MaxFlightSeconds = 25;  // trapped-orbit recall, counts as a catch
@@ -47,8 +49,8 @@ public class Engine
     public const double ExplosionRadius = 80;
 
     public double Width, Height;
-    public double LauncherX => Width / 2;
-    public double LauncherY => Height - 36;
+    public double PaddleX;
+    public double PaddleY => Height - 36;
 
     public List<Well> Wells = new();
     public List<Block> Blocks = new();
@@ -84,7 +86,8 @@ public class Engine
         Trail.Clear();
         _wellsThisFlight.Clear();
         InFlight = false;
-        BallX = LauncherX; BallY = LauncherY; BallVx = BallVy = 0;
+        PaddleX = Width / 2;
+        BallX = PaddleX; BallY = PaddleY; BallVx = BallVy = 0;
         Regenerate();
     }
 
@@ -100,7 +103,7 @@ public class Engine
         Trail.Clear();
     }
 
-    public void Tick(double dt)
+    public void Tick(double dt, double paddleAxis = 0)
     {
         dt = Math.Min(dt, 1 / 30.0); // clamp tab-switch spikes
 
@@ -117,7 +120,17 @@ public class Engine
         foreach (var b in Blocks)
             if (b.HitFlash > 0) b.HitFlash -= dt;
 
-        if (!InFlight || GameOver) return;
+        if (GameOver) return;
+
+        PaddleX = Math.Clamp(PaddleX + paddleAxis * PaddleSpeed * dt, PaddleHalfWidth, Width - PaddleHalfWidth);
+
+        if (!InFlight)
+        {
+            // ball waits on the paddle, ready to launch, and slides with it
+            BallX = PaddleX;
+            BallY = PaddleY;
+            return;
+        }
         FlightTime += dt;
 
         // gravity wells: inverse-square pull inside influence radius, elastic bumper at the core
@@ -150,13 +163,28 @@ public class Engine
         Trail.Enqueue((BallX, BallY));
         if (Trail.Count > 24) Trail.Dequeue();
 
-        // walls bounce (left/right/top); bottom edge is the catch line
+        // walls bounce (left/right/top)
         if (BallX < BallR)          { BallX = BallR;          BallVx = Math.Abs(BallVx) * 0.98; }
         if (BallX > Width - BallR)  { BallX = Width - BallR;  BallVx = -Math.Abs(BallVx) * 0.98; }
         if (BallY < BallR)          { BallY = BallR;          BallVy = Math.Abs(BallVy) * 0.98; }
-        if (BallY > Height - BallR)
+
+        // paddle: reflects the ball back into play — hit offset from center steers the bounce angle,
+        // like classic Breakout/Arkanoid, instead of silently ending the flight
+        if (BallVy > 0
+            && BallY + BallR >= PaddleY - PaddleHeight / 2 && BallY - BallR <= PaddleY + PaddleHeight / 2
+            && BallX + BallR >= PaddleX - PaddleHalfWidth && BallX - BallR <= PaddleX + PaddleHalfWidth)
         {
-            EndFlight(caught: Math.Abs(BallX - LauncherX) <= CatchHalf);
+            var offset = Math.Clamp((BallX - PaddleX) / PaddleHalfWidth, -1, 1);
+            var speed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
+            BallVx = offset * speed;
+            BallVy = -Math.Sqrt(Math.Max(speed * speed - BallVx * BallVx, speed * speed * 0.25));
+            BallY = PaddleY - PaddleHeight / 2 - BallR - 0.5;
+        }
+
+        // past the paddle with nothing to stop it = lost
+        if (BallY - BallR > PaddleY + PaddleHeight / 2)
+        {
+            EndFlight(caught: false);
             return;
         }
 
@@ -211,7 +239,7 @@ public class Engine
     private void EndFlight(bool caught)
     {
         InFlight = false;
-        BallX = LauncherX; BallY = LauncherY; BallVx = BallVy = 0;
+        BallX = PaddleX; BallY = PaddleY; BallVx = BallVy = 0;
         Combo = 0;
         _wellsThisFlight.Clear();
         Trail.Clear();
@@ -222,7 +250,7 @@ public class Engine
             if (Balls <= 0)
             {
                 GameOver = true;
-                GameOverReason = "Ball lost off-arena";
+                GameOverReason = "Ball missed the paddle and was lost";
                 return;
             }
         }
@@ -235,15 +263,15 @@ public class Engine
             return;
         }
 
-        // hazards creep toward the launcher line every launch
+        // hazards creep toward the paddle line every launch
         foreach (var b in Blocks)
         {
             if (!b.Alive || b.Kind != BlockKind.Hazard) continue;
             b.Y += HazardStep;
-            if (b.Y + b.H >= LauncherY - 12)
+            if (b.Y + b.H >= PaddleY - 12)
             {
                 GameOver = true;
-                GameOverReason = "Hazard breached the launcher line";
+                GameOverReason = "Hazard breached the paddle line";
             }
         }
     }

@@ -20,7 +20,7 @@
             {
                 <p class="menu-sub">Slingshot the ball around gravity wells. Chain wells for combo multipliers.</p>
             }
-            <p class="menu-sub" style="font-size:0.85rem">Drag upward in the direction you want to fire, release to launch. Catch the ball in the teal zone.</p>
+            <p class="menu-sub" style="font-size:0.85rem">Drag upward to aim, release to launch. Move the paddle with A/D or ←/→ to bounce the ball back.</p>
             <div class="menu-buttons">
                 <button class="btn-normal" @onclick="StartGame">Start Game</button>
                 <button @onclick="ShowLeaderboard">Leaderboard</button>
@@ -209,8 +209,8 @@
 
         if (_state == GameState.Playing)
         {
-            await PollInputAsync();
-            _engine.Tick(dt);
+            var paddleAxis = await PollInputAsync();
+            _engine.Tick(dt, paddleAxis);
 
             if (_engine.GameOver)
             {
@@ -233,12 +233,14 @@
         await Render();
     }
 
-    private async Task PollInputAsync()
+    private async Task<double> PollInputAsync()
     {
+        var axis = await JS.InvokeAsync<double>("gameInterop.getPaddleAxis");
+
         // [down, x, y, startX, startY, releasedEdge, releaseX, releaseY]
         var p = await JS.InvokeAsync<double[]>("gameInterop.getPointerState");
         _aiming = false;
-        if (_engine.InFlight) return;
+        if (_engine.InFlight) return axis;
 
         if (p[0] != 0)
         {
@@ -250,6 +252,7 @@
             var (vx, vy, valid) = AimVector(p[3], p[4], p[6], p[7]);
             if (valid) _engine.Launch(vx, vy);
         }
+        return axis;
     }
 
     // Direct aim: ball launches the same direction you drag (drag up-right => ball flies up-right).
@@ -301,10 +304,6 @@
 
         if (_state is GameState.Playing or GameState.GameOver)
         {
-            // catch zone
-            await _ctx.SetFillStyleAsync("rgba(31, 214, 196, 0.35)");
-            await _ctx.FillRectAsync(_engine.LauncherX - Engine.CatchHalf, _canvasH - 6.0, Engine.CatchHalf * 2, 6);
-
             // gravity wells: faint influence ring + solid core
             foreach (var w in _engine.Wells)
             {
@@ -369,13 +368,11 @@
             }
             await _ctx.SetGlobalAlphaAsync(1.0f);
 
-            // launcher chevron
+            // paddle
             await _ctx.SetFillStyleAsync("#1fd6c4");
-            await _ctx.BeginPathAsync();
-            await _ctx.MoveToAsync(_engine.LauncherX, _engine.LauncherY - 12);
-            await _ctx.LineToAsync(_engine.LauncherX - 12, _engine.LauncherY + 8);
-            await _ctx.LineToAsync(_engine.LauncherX + 12, _engine.LauncherY + 8);
-            await _ctx.FillAsync();
+            await _ctx.FillRectAsync(
+                _engine.PaddleX - Engine.PaddleHalfWidth, _engine.PaddleY - Engine.PaddleHeight / 2,
+                Engine.PaddleHalfWidth * 2, Engine.PaddleHeight);
 
             // ball
             await _ctx.SetFillStyleAsync("#ffffff");
@@ -394,8 +391,8 @@
                 await _ctx.BeginPathAsync();
                 for (double t = 0; t < len; t += 16)
                 {
-                    await _ctx.MoveToAsync(_engine.LauncherX + ux * t, _engine.LauncherY + uy * t);
-                    await _ctx.LineToAsync(_engine.LauncherX + ux * (t + 8), _engine.LauncherY + uy * (t + 8));
+                    await _ctx.MoveToAsync(_engine.PaddleX + ux * t, _engine.PaddleY + uy * t);
+                    await _ctx.LineToAsync(_engine.PaddleX + ux * (t + 8), _engine.PaddleY + uy * (t + 8));
                 }
                 await _ctx.StrokeAsync();
             }

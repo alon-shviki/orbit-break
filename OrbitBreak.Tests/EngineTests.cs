@@ -63,7 +63,7 @@ public class EngineTests
     }
 
     [Fact]
-    public void BallLostOffCatch_ConsumesBalls_ThenGameOver()
+    public void BallMissesPaddle_ConsumesBalls_ThenGameOver()
     {
         var e = NewEngine();
         for (var i = 0; i < Engine.StartingBalls; i++)
@@ -71,7 +71,7 @@ public class EngineTests
             Assert.False(e.GameOver);
             e.Wells.Clear();
             e.Blocks.Clear();
-            e.BallX = 50; e.BallY = 599; e.BallVx = 0; e.BallVy = 0; // far outside the catch zone
+            e.BallX = 50; e.BallY = 599; e.BallVx = 0; e.BallVy = 0; // already past the paddle line
             e.InFlight = true;
             e.Tick(1.0 / 60);
             Assert.Equal(Engine.StartingBalls - 1 - i, e.Balls);
@@ -81,15 +81,34 @@ public class EngineTests
     }
 
     [Fact]
-    public void HazardReachingLauncherLine_EndsRun()
+    public void BallBouncesOffPaddle_ReflectsUpward_WithoutLosingABall()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        e.BallX = 400; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200; // falling into paddle center
+        e.InFlight = true;
+
+        e.Tick(1.0 / 60);
+
+        Assert.True(e.InFlight, "a paddle hit should keep the flight going, not end it");
+        Assert.True(e.BallVy < 0, "ball should now be moving upward");
+        Assert.Equal(Engine.StartingBalls, e.Balls);
+    }
+
+    [Fact]
+    public void HazardReachingPaddleLine_EndsRun()
     {
         var e = NewEngine();
         e.Wells.Clear();
         e.Blocks = new List<Block>
         {
-            new() { X = 300, Y = e.LauncherY - 40, W = 54, H = 22, Kind = BlockKind.Hazard, Hp = 1 },
+            new() { X = 300, Y = e.PaddleY - 40, W = 54, H = 22, Kind = BlockKind.Hazard, Hp = 1 },
         };
-        e.BallX = e.LauncherX; e.BallY = 599; e.BallVx = 0; e.BallVy = 0; // caught → launch ends → hazard steps down
+        // flight-timeout recall (caught, no ball lost) still advances hazards, same as a real return
+        e.BallX = 400; e.BallY = 300; e.BallVx = 0; e.BallVy = 50;
+        e.FlightTime = Engine.MaxFlightSeconds + 1;
         e.InFlight = true;
 
         e.Tick(1.0 / 60);
