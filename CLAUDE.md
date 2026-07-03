@@ -2,13 +2,22 @@
 
 Blazor WASM (.NET) physics arena/breakout game. Canvas via `Blazor.Extensions.Canvas`; loop = `requestAnimationFrame` → JS interop → C#. No game engine. **Client-only in production** — auth, scores, and leaderboard are owned by the portal auth server. See [[Notes/Design/Core Loop]] for the concept.
 
-Status: concept only — no project scaffold yet. This file will gain real `## Commands` once `dotnet new blazorwasm` is run.
+Status: playable core scaffolded — `OrbitBreak.Client` (game) + `OrbitBreak.Tests` (engine tests). See `Notes/Tech/Architecture.md`.
+
+## Commands
+
+```bash
+dotnet run --project OrbitBreak.Client            # dev server (client-only, no portal)
+dotnet build OrbitBreak.Client -c Release
+dotnet test OrbitBreak.Tests -c Release           # headless engine tests
+docker build -f OrbitBreak.Client/Dockerfile .    # nginx-served production image
+```
 
 ## Portal integration
 - Auth: user logs in at the portal (`localhost:3000`); JWT passed via URL hash (`#portal_token=...`) on game launch and stored in `localStorage["jwt"]`
 - Scores: game's `nginx.conf` must proxy `POST /api/scores` → `portal-auth:5001/api/scores/orbit-break`
 - Leaderboard: game's `nginx.conf` must proxy `GET /api/leaderboard` → `portal-auth:5001/api/leaderboard/orbit-break`
-- CI: none yet — add `.github/workflows/docker.yml` pushing `ghcr.io/alon-shviki/orbit-break-client:latest` on push to `main` once there's a client to build
+- CI: `.github/workflows/docker.yml` builds + tests, pushes `ghcr.io/alon-shviki/orbit-break-client:latest` on push to `main`
 
 ## Hard rules (always)
 - Do **not** add auth endpoints to this game — login is portal-only.
@@ -60,8 +69,8 @@ Never commit directly to `main`.
 
 ## Not Done Yet
 
-This repo is a docs-only scaffold. Before real work starts, someone still needs to (see portal's `.claude/rules/adding-a-game.md`):
-- Create the GitHub repo, push this scaffold, make it public
+The Blazor WASM client, engine tests, Dockerfile/nginx.conf, and CI workflow exist. Still pending (see portal's `.claude/rules/adding-a-game.md`):
+- Create the GitHub repo, push, make it public
 - Add `orbit-break` to `REPOS`/`ROOTS` in the portal's `start-issue`/`start-task` scripts
-- Set up issue labels, issue templates, CI workflow, branch protection
-- Scaffold the actual Blazor WASM project (`dotnet new blazorwasm`) and wire it into `docker-compose.yml`
+- Set up issue labels, issue templates, branch protection
+- Wire the game into the portal's `docker-compose.yml` (portal repo change)
