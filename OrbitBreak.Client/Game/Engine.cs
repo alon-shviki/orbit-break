@@ -39,9 +39,9 @@ public class Engine
 {
     // ── tuning knobs (all need playtesting — see Notes/Design/Core Loop.md open questions) ──
     public const double BallR = 7;
-    public const double PaddleHalfWidth = 55;   // half-width of the controllable paddle
+    public const double PaddleHalfWidth = 70;   // half-width of the controllable paddle (sim-tuned, issue #2)
     public const double PaddleHeight = 12;
-    public const double PaddleSpeed = 640;      // px/s, A/D or ←/→
+    public const double PaddleSpeed = 760;      // px/s, A/D or ←/→ (sim-tuned, issue #2)
     public const int    LaunchesPerTier = 5;    // constellation regenerates one tier harder every N launches
     public const int    StartingBalls = 3;
     public const double MaxFlightSeconds = 25;  // trapped-orbit recall, counts as a catch
@@ -198,6 +198,7 @@ public class Engine
                 BallVy = -Math.Sqrt(Math.Max(speed * speed - BallVx * BallVx, speed * speed * 0.25));
                 BallX = xAtCross;
                 BallY = paddleTop - BallR - 0.5;
+                FlightTime = 0; // paddle contact proves the ball isn't orbit-trapped — recall timer restarts
             }
         }
 
@@ -225,6 +226,14 @@ public class Engine
             else
                 BallVy = (dy >= 0 ? 1 : -1) * Math.Abs(BallVy);
             break;
+        }
+
+        // full clear advances the tier immediately, Block Breaker style — no waiting out the
+        // flight in an empty arena; the ball stays in flight into the new constellation
+        if (Blocks.Count > 0 && Blocks.All(b => !b.Alive))
+        {
+            Tier++;
+            Regenerate();
         }
     }
 

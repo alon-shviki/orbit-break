@@ -18,7 +18,7 @@ public static class Constellation
                 X = x, Y = y,
                 Core = 14 + rng.NextDouble() * 6,
                 Influence = 130 + 10 * Math.Min(tier, 8),
-                Strength = 2.6e7 + 2e6 * Math.Min(tier, 8),
+                Strength = 6e6 + 5e5 * Math.Min(tier, 8), // sim-tuned: escape speed ~700 px/s from core — wells deflect, not devour (issue #2)
             });
         }
 

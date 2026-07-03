@@ -32,6 +32,8 @@ Matches Bullet Heaven's scale: physics/orbit engine comparable to BH's quadtree 
 
 ## Open Questions
 
-- Exact gravity-well falloff curve and tuning (needs playtesting once prototyped)
+- ~~Exact gravity-well falloff curve and tuning~~ — answered by simulation (issue #2): inverse-square kept, `Strength` lowered so escape speed from a core (~700 px/s) sits below typical ball speed — wells must deflect, never permanently capture. Method and numbers in [[Tech/Tuning]].
 - Constellation generation algorithm (grid-based vs. Poisson-disc scatter)
 - Whether ball variants are picked between launches or found mid-flight
+
+See also [[Breakout Research]] for what this game borrows from the classics vs. keeps unique.

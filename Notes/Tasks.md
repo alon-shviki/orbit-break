@@ -15,7 +15,7 @@ Concept → playable. Roughly in order.
 - [ ] Ball variants: heavy, split, phase (issue #3; design open question: picked between launches vs. mid-flight)
 - [ ] Power-ups: transient pickups dropped from blocks — wider paddle, extra ball, slower ball, sticky paddle (issue #12; distinct from #3's persistent variants, see [[Tech/Engine]])
 - [x] Juice pass: particles, screen shake, trails (sound + bigger effects later)
-- [ ] Playtest & tune: gravity falloff, launch power, paddle speed/width, tier curve (issue #2)
+- [x] Playtest & tune: gravity falloff, launch power, paddle speed/width, tier curve (issue #2 — headless bot simulation, see [[Tech/Tuning]]; wells made escapable, recall timer resets on paddle touch, mid-flight clear advance, paddle 760/±70)
 - [x] Fix ball-speed cap + paddle tunneling at high speed (issues #10, #11 — speed cap + swept paddle collision + single-round-trip input interop + rAF busy guard)
 - [x] Wire into `docker-compose.yml` (`orbit-break-client` :8081, portal PR #23) + nginx proxy for scores/leaderboard (`nginx.conf`)
 - [x] `Games/Orbit Break.md` hub page status update (portal PR #23)

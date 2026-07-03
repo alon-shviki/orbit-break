@@ -57,9 +57,28 @@ public class EngineTests
 
         e.Tick(1.0 / 60);
 
-        Assert.False(e.Blocks[0].Alive);
         Assert.Equal(1, e.BlocksBroken);
         Assert.Equal(10, e.Score); // base value × 1.0 multiplier
+        // that was the last block — full clear advances the tier mid-flight, Block Breaker style
+        Assert.Equal(2, e.Tier);
+        Assert.Contains(e.Blocks, b => b.Alive);
+    }
+
+    [Fact]
+    public void PaddleBounce_ResetsOrbitTrapRecallTimer()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        e.BallX = 400; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200;
+        e.FlightTime = Engine.MaxFlightSeconds - 1; // one second from forced recall
+        e.InFlight = true;
+
+        e.Tick(1.0 / 60);
+
+        Assert.True(e.InFlight);
+        Assert.True(e.FlightTime < 1, "paddle contact should restart the recall timer — only genuinely trapped orbits get recalled");
     }
 
     [Fact]
