@@ -42,18 +42,18 @@ docker build -f OrbitBreak.Client/Dockerfile .    # nginx-served production imag
 
 ## Workflow
 
-Scripts live in the portal repo at `~/Desktop/game/.claude/scripts/` — no machine setup needed. From inside this repo the slug is auto-detected.
+Scripts live in this repo at `.claude/scripts/` (copied from the portal; slug `ob`, auto-detected from the git remote when run inside this repo).
 
 ```bash
 # Issue work (run from this repo's root or any directory inside it)
-bash ~/Desktop/game/.claude/scripts/start-issue <number>   # auto-detects orbit-break, no slug needed
+bash .claude/scripts/start-issue <number>   # auto-detects orbit-break, no slug needed
 # Then from inside the worktree:
-bash ~/Desktop/game/.claude/scripts/finish-issue
+bash .claude/scripts/finish-issue           # tests → push → PR → wait for CI → merge
 
 # Non-issue work (docs, config)
-bash ~/Desktop/game/.claude/scripts/start-task <name>      # auto-detects orbit-break
+bash .claude/scripts/start-task <name>      # auto-detects orbit-break
 # Then from inside the worktree:
-bash ~/Desktop/game/.claude/scripts/auto-pr "description"
+bash .claude/scripts/auto-pr "description"
 ```
 
 Cross-repo triage (all games at once) is at the portal hub (`~/Desktop/game`). Full workflow docs: portal's `Tech/Agentic Pipeline.md` and `Tech/Scripts.md`.
