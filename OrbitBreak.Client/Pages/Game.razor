@@ -20,7 +20,7 @@
             {
                 <p class="menu-sub">Slingshot the ball around gravity wells. Chain wells for combo multipliers.</p>
             }
-            <p class="menu-sub" style="font-size:0.85rem">Drag anywhere and release to launch. Catch the ball in the teal zone.</p>
+            <p class="menu-sub" style="font-size:0.85rem">Drag upward in the direction you want to fire, release to launch. Catch the ball in the teal zone.</p>
             <div class="menu-buttons">
                 <button class="btn-normal" @onclick="StartGame">Start Game</button>
                 <button @onclick="ShowLeaderboard">Leaderboard</button>
@@ -252,11 +252,11 @@
         }
     }
 
-    // Slingshot: pull back from the drag start; must point upward, speed clamped
+    // Direct aim: ball launches the same direction you drag (drag up-right => ball flies up-right).
     private static (double Vx, double Vy, bool Valid) AimVector(double startX, double startY, double curX, double curY)
     {
-        var vx = (startX - curX) * 3.5;
-        var vy = (startY - curY) * 3.5;
+        var vx = (curX - startX) * 3.5;
+        var vy = (curY - startY) * 3.5;
         var mag = Math.Sqrt(vx * vx + vy * vy);
         if (mag < 60 || vy >= 0) return (0, 0, false);
         var speed = Math.Clamp(mag, 380, 1000);
