@@ -27,8 +27,13 @@ Layout of the game code in `OrbitBreak.Client/` and where the tuning knobs live.
 
 All constants sit at the top of `Engine.cs` (ball radius, paddle width/speed, launches per tier, hazard step, explosion radius, flight timeout) and in `Constellation.Generate` (well strength/influence, block density, kind chances). The gravity falloff curve and generator algorithm are open questions in [[Design/Core Loop]] — grid placement is deliberate laziness, switch to Poisson-disc if constellations feel too regular.
 
+## Known issues
+
+- **Ball speed is uncapped** — gravity wells add velocity every frame the ball spends in their influence radius with no clamp anywhere. Reported as general flight stutter (issue #10) and, more concretely, as the ball tunneling straight through the paddle (issue #11): the paddle check is a discrete post-move position test, and a fast enough ball can cross the whole ~26px collision band in a single tick.
+
 ## Skipped for now
 
 - **Ball variants** (heavy / split / phase) — own task in [[Tasks]]; design open question (picked between launches vs. mid-flight) still unresolved.
+- **Power-ups** (transient pickups: wider paddle, extra ball, slower ball, sticky paddle) — issue #12; distinct from ball variants above, which are a persistent per-run pick rather than a dropped-from-a-block temporary effect.
 - **Moving blocks** — "occasional moving blocks" from the design doc; add once base feel is tuned.
 - **Juice extras** — particles, trail, and screen shake are in; sound and bigger effects are a later pass.
