@@ -27,6 +27,9 @@ public static class Constellation
         var density = Math.Min(0.22 + 0.05 * tier, 0.65);
         var hazardChance = Math.Min(0.02 * tier, 0.12);
         var armoredChance = Math.Min(0.08 + 0.03 * tier, 0.28);
+        // movers appear from tier 4, stair-stepped in gradually (issue #4); hazards never drift
+        var moverChance = tier < 4 ? 0 : Math.Min(0.05 * (tier - 3), 0.30);
+        var moverSpeed = 30 + 10 * Math.Min(tier, 8);
 
         var cols = (int)((w - 40) / cellW);
         var xOffset = (w - cols * cellW) / 2;
@@ -53,6 +56,9 @@ public static class Constellation
                     X = x, Y = y, W = bw, H = bh,
                     Kind = kind,
                     Hp = kind == BlockKind.Armored ? 3 : 1,
+                    Vx = kind != BlockKind.Hazard && rng.NextDouble() < moverChance
+                        ? (rng.NextDouble() < 0.5 ? -moverSpeed : moverSpeed)
+                        : 0,
                 });
             }
         }

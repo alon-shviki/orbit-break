@@ -13,6 +13,7 @@ public class Well
 public class Block
 {
     public double X, Y, W, H; // top-left
+    public double Vx;         // horizontal drift, 0 = static; movers appear from tier 4 (issue #4)
     public BlockKind Kind;
     public int Hp;
     public bool Alive = true;
@@ -165,7 +166,18 @@ public class Engine
         }
 
         foreach (var b in Blocks)
+        {
             if (b.HitFlash > 0) b.HitFlash -= dt;
+
+            // moving blocks drift horizontally and bounce off the side walls (issue #4);
+            // slow (≤ ~110 px/s), so the discrete ball-block check can't tunnel through them
+            if (b.Vx != 0 && b.Alive && !GameOver)
+            {
+                b.X += b.Vx * dt;
+                if (b.X < 20)            { b.X = 20;            b.Vx = Math.Abs(b.Vx); }
+                if (b.X + b.W > Width - 20) { b.X = Width - 20 - b.W; b.Vx = -Math.Abs(b.Vx); }
+            }
+        }
 
         if (GameOver) return;
 
