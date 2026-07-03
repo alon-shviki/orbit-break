@@ -14,7 +14,7 @@ Layout of the game code in `OrbitBreak.Client/` and where the tuning knobs live.
 
 ## Mechanics as implemented
 
-- **Launch**: slingshot drag (pull back from drag start), release to fire. Must aim upward; speed clamped 380–1000 px/s.
+- **Launch**: direct aim — drag in the direction you want to fire, release to launch (fixed from an initial slingshot-pull-back build that confused players, see issue #6). Must aim upward; speed clamped 380–1000 px/s.
 - **Wells**: inverse-square pull inside `Influence` radius (accel floor stops it exploding near center); solid `Core` acts as an elastic bumper.
 - **Combo**: +1 per *distinct well entered* during a flight; multiplier `1 + 0.5 × combo`; resets on catch. This approximates the design doc's "per well-assisted deflection" — refine after feel-testing (marked with a `ponytail:` comment in code).
 - **Catch**: bottom edge within `CatchHalf` (110 px) of the launcher = caught; outside = ball lost (`StartingBalls` = 3). Flights over 25 s are recalled as caught (anti-softlock for stable orbits).
