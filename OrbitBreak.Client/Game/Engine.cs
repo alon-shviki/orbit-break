@@ -34,13 +34,21 @@ public class Particle
     public string Color = "#fff";
 }
 
-public enum PowerUpKind { WidePaddle, SlowBall, ExtraBall, Sticky }
+public enum PowerUpKind { WidePaddle, SlowBall, ExtraBall, Sticky, HeavyBall, SplitBall, PhaseBall }
 
 public class PowerUp
 {
     public double X, Y;
     public PowerUpKind Kind;
 }
+
+public class Ball
+{
+    public double X, Y, Vx, Vy;
+}
+
+/// <summary>Flight-scoped ball mode from a variant pickup (issue #3); cleared when the flight ends.</summary>
+public enum BallVariant { None, Heavy, Phase }
 
 /// <summary>Whole simulation: ball, wells, blocks, combo, difficulty. No rendering, no interop — testable head-less.</summary>
 public class Engine
@@ -76,9 +84,12 @@ public class Engine
     public int StickyCharges;
     public double PaddleHalfWidthNow => WidePaddleTime > 0 ? PaddleHalfWidth * 1.5 : PaddleHalfWidth;
 
-    public double BallX, BallY, BallVx, BallVy;
-    public bool InFlight;
+    public List<Ball> FlightBalls = new();          // all balls currently in flight (split can multiply them)
+    public bool InFlight => FlightBalls.Count > 0;
     public double FlightTime;
+    public BallVariant Variant;                     // heavy/phase mode, applies to every flight ball
+    public bool PendingSplit;                       // split caught between flights → next launch starts doubled
+    public const int MaxFlightBalls = 6;
 
     public int Score, BlocksBroken, Combo, Tier, Balls, Launches;
     public bool GameOver;
@@ -107,9 +118,10 @@ public class Engine
         StickyCharges = 0;
         Trail.Clear();
         _wellsThisFlight.Clear();
-        InFlight = false;
+        FlightBalls.Clear();
+        Variant = BallVariant.None;
+        PendingSplit = false;
         PaddleX = Width / 2;
-        BallX = PaddleX; BallY = PaddleY; BallVx = BallVy = 0;
         Regenerate();
     }
 
@@ -118,11 +130,24 @@ public class Engine
     public void Launch(double vx, double vy)
     {
         if (InFlight || GameOver) return;
-        InFlight = true;
         FlightTime = 0;
-        BallVx = vx; BallVy = vy;
+        FlightBalls.Add(new Ball { X = PaddleX, Y = PaddleY, Vx = vx, Vy = vy });
+        if (PendingSplit) { PendingSplit = false; SplitAll(); }
         _wellsThisFlight.Clear();
         Trail.Clear();
+    }
+
+    /// <summary>Every flight ball forks into two (±20° spread), capped at MaxFlightBalls.</summary>
+    public void SplitAll()
+    {
+        const double a = 0.35;
+        var (cos, sin) = (Math.Cos(a), Math.Sin(a));
+        foreach (var b in FlightBalls.ToList())
+        {
+            if (FlightBalls.Count >= MaxFlightBalls) break;
+            FlightBalls.Add(new Ball { X = b.X, Y = b.Y, Vx = b.Vx * cos - b.Vy * sin, Vy = b.Vx * sin + b.Vy * cos });
+            (b.Vx, b.Vy) = (b.Vx * cos + b.Vy * sin, -b.Vx * sin + b.Vy * cos);
+        }
     }
 
     public void Tick(double dt, double paddleAxis = 0)
@@ -164,121 +189,132 @@ public class Engine
             }
         }
 
-        if (!InFlight)
-        {
-            // ball waits on the paddle, ready to launch, and slides with it
-            BallX = PaddleX;
-            BallY = PaddleY;
-            return;
-        }
+        if (!InFlight) return; // ball rests on the paddle (drawn at PaddleX/PaddleY), ready to launch
         FlightTime += dt;
 
-        // gravity wells: inverse-square pull inside influence radius, elastic bumper at the core
-        foreach (var w in Wells)
-        {
-            var dx = w.X - BallX; var dy = w.Y - BallY;
-            var d2 = dx * dx + dy * dy;
-            var d = Math.Sqrt(d2);
-            if (d > w.Influence || d == 0) continue;
-
-            if (_wellsThisFlight.Add(w)) Combo++;
-
-            var a = w.Strength / Math.Max(d2, 900); // floor stops the pull exploding near the core
-            BallVx += a * dx / d * dt;
-            BallVy += a * dy / d * dt;
-
-            if (d < w.Core + BallR)
-            {
-                var nx = -dx / d; var ny = -dy / d;
-                var dot = BallVx * nx + BallVy * ny;
-                if (dot < 0) { BallVx -= 2 * dot * nx; BallVy -= 2 * dot * ny; }
-                BallX = w.X + nx * (w.Core + BallR + 0.5);
-                BallY = w.Y + ny * (w.Core + BallR + 0.5);
-            }
-        }
-
-        // cap speed: wells add velocity every frame with no natural limit (issues #10, #11);
         // an active slow-ball pickup halves the cap, which actively brakes a fast ball
         var speedCap = SlowBallTime > 0 ? MaxBallSpeed * 0.5 : MaxBallSpeed;
-        var ballSpeed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
-        if (ballSpeed > speedCap)
-        {
-            BallVx *= speedCap / ballSpeed;
-            BallVy *= speedCap / ballSpeed;
-        }
-
-        var prevX = BallX; var prevY = BallY;
-        BallX += BallVx * dt;
-        BallY += BallVy * dt;
-
-        Trail.Enqueue((BallX, BallY));
-        if (Trail.Count > 24) Trail.Dequeue();
-
-        // walls bounce (left/right/top)
-        if (BallX < BallR)          { BallX = BallR;          BallVx = Math.Abs(BallVx) * 0.98; }
-        if (BallX > Width - BallR)  { BallX = Width - BallR;  BallVx = -Math.Abs(BallVx) * 0.98; }
-        if (BallY < BallR)          { BallY = BallR;          BallVy = Math.Abs(BallVy) * 0.98; }
-
-        // paddle: reflects the ball back into play — hit offset from center steers the bounce angle,
-        // like classic Breakout/Arkanoid, instead of silently ending the flight.
-        // Swept check: a fast ball can cross the whole ~26px paddle band in one tick, so test the
-        // path travelled this frame (prev → current), not just the final position (issue #11).
         var paddleTop = PaddleY - PaddleHeight / 2;
-        if (BallVy > 0
-            && prevY + BallR <= PaddleY + PaddleHeight / 2  // started at/above the band's bottom
-            && BallY + BallR >= paddleTop)                  // ended at/below the band's top
-        {
-            // X position at the moment the ball's bottom edge crossed the paddle's top
-            var t = Math.Clamp((paddleTop - (prevY + BallR)) / Math.Max(BallY - prevY, 1e-9), 0, 1);
-            var xAtCross = prevX + (BallX - prevX) * t;
-            if (xAtCross + BallR >= PaddleX - PaddleHalfWidthNow && xAtCross - BallR <= PaddleX + PaddleHalfWidthNow)
-            {
-                if (StickyCharges > 0)
-                {
-                    // sticky pickup: this contact is a guaranteed catch — ball returns to the
-                    // paddle for a fresh aimed launch instead of bouncing
-                    StickyCharges--;
-                    EndFlight(caught: true);
-                    return;
-                }
-                var offset = Math.Clamp((xAtCross - PaddleX) / PaddleHalfWidthNow, -1, 1);
-                var speed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
-                BallVx = offset * speed;
-                BallVy = -Math.Sqrt(Math.Max(speed * speed - BallVx * BallVx, speed * speed * 0.25));
-                BallX = xAtCross;
-                BallY = paddleTop - BallR - 0.5;
-                FlightTime = 0; // paddle contact proves the ball isn't orbit-trapped — recall timer restarts
-            }
-        }
 
-        // past the paddle with nothing to stop it = lost
-        if (BallY - BallR > PaddleY + PaddleHeight / 2)
+        for (var bi = FlightBalls.Count - 1; bi >= 0; bi--)
         {
-            EndFlight(caught: false);
-            return;
+            var ball = FlightBalls[bi];
+
+            // gravity wells: inverse-square pull inside influence radius, elastic bumper at the core.
+            // A phase ball ignores wells entirely — straight lines, but no well combos either.
+            if (Variant != BallVariant.Phase)
+                foreach (var w in Wells)
+                {
+                    var dx = w.X - ball.X; var dy = w.Y - ball.Y;
+                    var d2 = dx * dx + dy * dy;
+                    var d = Math.Sqrt(d2);
+                    if (d > w.Influence || d == 0) continue;
+
+                    if (_wellsThisFlight.Add(w)) Combo++;
+
+                    var a = w.Strength / Math.Max(d2, 900); // floor stops the pull exploding near the core
+                    ball.Vx += a * dx / d * dt;
+                    ball.Vy += a * dy / d * dt;
+
+                    if (d < w.Core + BallR)
+                    {
+                        var nx = -dx / d; var ny = -dy / d;
+                        var dot = ball.Vx * nx + ball.Vy * ny;
+                        if (dot < 0) { ball.Vx -= 2 * dot * nx; ball.Vy -= 2 * dot * ny; }
+                        ball.X = w.X + nx * (w.Core + BallR + 0.5);
+                        ball.Y = w.Y + ny * (w.Core + BallR + 0.5);
+                    }
+                }
+
+            // cap speed: wells add velocity every frame with no natural limit (issues #10, #11)
+            var ballSpeed = Math.Sqrt(ball.Vx * ball.Vx + ball.Vy * ball.Vy);
+            if (ballSpeed > speedCap)
+            {
+                ball.Vx *= speedCap / ballSpeed;
+                ball.Vy *= speedCap / ballSpeed;
+            }
+
+            var prevX = ball.X; var prevY = ball.Y;
+            ball.X += ball.Vx * dt;
+            ball.Y += ball.Vy * dt;
+
+            if (bi == 0)
+            {
+                Trail.Enqueue((ball.X, ball.Y));
+                if (Trail.Count > 24) Trail.Dequeue();
+            }
+
+            // walls bounce (left/right/top)
+            if (ball.X < BallR)         { ball.X = BallR;         ball.Vx = Math.Abs(ball.Vx) * 0.98; }
+            if (ball.X > Width - BallR) { ball.X = Width - BallR; ball.Vx = -Math.Abs(ball.Vx) * 0.98; }
+            if (ball.Y < BallR)         { ball.Y = BallR;         ball.Vy = Math.Abs(ball.Vy) * 0.98; }
+
+            // paddle: reflects the ball back into play — hit offset from center steers the bounce angle,
+            // like classic Breakout/Arkanoid, instead of silently ending the flight.
+            // Swept check: a fast ball can cross the whole ~26px paddle band in one tick, so test the
+            // path travelled this frame (prev → current), not just the final position (issue #11).
+            if (ball.Vy > 0
+                && prevY + BallR <= PaddleY + PaddleHeight / 2  // started at/above the band's bottom
+                && ball.Y + BallR >= paddleTop)                 // ended at/below the band's top
+            {
+                // X position at the moment the ball's bottom edge crossed the paddle's top
+                var t = Math.Clamp((paddleTop - (prevY + BallR)) / Math.Max(ball.Y - prevY, 1e-9), 0, 1);
+                var xAtCross = prevX + (ball.X - prevX) * t;
+                if (xAtCross + BallR >= PaddleX - PaddleHalfWidthNow && xAtCross - BallR <= PaddleX + PaddleHalfWidthNow)
+                {
+                    if (StickyCharges > 0)
+                    {
+                        // sticky pickup: this contact is a guaranteed catch — the ball is absorbed;
+                        // if it was the last one, the flight ends ready for a fresh aimed launch
+                        StickyCharges--;
+                        FlightBalls.RemoveAt(bi);
+                        if (!InFlight) { EndFlight(caught: true); return; }
+                        continue;
+                    }
+                    var offset = Math.Clamp((xAtCross - PaddleX) / PaddleHalfWidthNow, -1, 1);
+                    var speed = Math.Sqrt(ball.Vx * ball.Vx + ball.Vy * ball.Vy);
+                    ball.Vx = offset * speed;
+                    ball.Vy = -Math.Sqrt(Math.Max(speed * speed - ball.Vx * ball.Vx, speed * speed * 0.25));
+                    ball.X = xAtCross;
+                    ball.Y = paddleTop - BallR - 0.5;
+                    FlightTime = 0; // paddle contact proves the flight isn't orbit-trapped — recall timer restarts
+                }
+            }
+
+            // past the paddle with nothing to stop it = lost; only losing the LAST ball costs a life
+            if (ball.Y - BallR > PaddleY + PaddleHeight / 2)
+            {
+                FlightBalls.RemoveAt(bi);
+                if (!InFlight) { EndFlight(caught: false); return; }
+                continue;
+            }
+
+            // block collision: circle vs AABB, reflect on the deep axis, one block per ball per tick.
+            // A heavy ball deals 3 damage and plows straight through without bouncing.
+            foreach (var b in Blocks)
+            {
+                if (!b.Alive) continue;
+                var cx = Math.Clamp(ball.X, b.X, b.X + b.W);
+                var cy = Math.Clamp(ball.Y, b.Y, b.Y + b.H);
+                var dx = ball.X - cx; var dy = ball.Y - cy;
+                if (dx * dx + dy * dy > BallR * BallR) continue;
+
+                HitBlock(b, Variant == BallVariant.Heavy ? 3 : 1);
+                if (Variant != BallVariant.Heavy)
+                {
+                    if (Math.Abs(dx) > Math.Abs(dy))
+                        ball.Vx = (dx >= 0 ? 1 : -1) * Math.Abs(ball.Vx);
+                    else
+                        ball.Vy = (dy >= 0 ? 1 : -1) * Math.Abs(ball.Vy);
+                }
+                break;
+            }
         }
 
         if (FlightTime > MaxFlightSeconds) { EndFlight(caught: true); return; }
 
-        // block collision: circle vs AABB, reflect on the deep axis, one block per tick
-        foreach (var b in Blocks)
-        {
-            if (!b.Alive) continue;
-            var cx = Math.Clamp(BallX, b.X, b.X + b.W);
-            var cy = Math.Clamp(BallY, b.Y, b.Y + b.H);
-            var dx = BallX - cx; var dy = BallY - cy;
-            if (dx * dx + dy * dy > BallR * BallR) continue;
-
-            HitBlock(b);
-            if (Math.Abs(dx) > Math.Abs(dy))
-                BallVx = (dx >= 0 ? 1 : -1) * Math.Abs(BallVx);
-            else
-                BallVy = (dy >= 0 ? 1 : -1) * Math.Abs(BallVy);
-            break;
-        }
-
         // full clear advances the tier immediately, Block Breaker style — no waiting out the
-        // flight in an empty arena; the ball stays in flight into the new constellation
+        // flight in an empty arena; the balls stay in flight into the new constellation
         if (Blocks.Count > 0 && Blocks.All(b => !b.Alive))
         {
             Tier++;
@@ -286,10 +322,11 @@ public class Engine
         }
     }
 
-    private void HitBlock(Block b)
+    private void HitBlock(Block b, int damage = 1)
     {
         b.HitFlash = 0.12;
-        if (--b.Hp > 0) return;
+        b.Hp -= damage;
+        if (b.Hp > 0) return;
         KillBlock(b);
     }
 
@@ -305,7 +342,7 @@ public class Engine
             PowerUps.Add(new PowerUp
             {
                 X = b.CenterX, Y = b.CenterY,
-                Kind = (PowerUpKind)_rng.Next(4),
+                Kind = (PowerUpKind)_rng.Next(7), // 4 classic power-ups + 3 ball variants (issue #3)
             });
 
         if (b.Kind == BlockKind.Explosive)
@@ -329,13 +366,20 @@ public class Engine
             case PowerUpKind.SlowBall:   SlowBallTime = PowerUpDuration; break;
             case PowerUpKind.ExtraBall:  Balls++; break;
             case PowerUpKind.Sticky:     StickyCharges++; break;
+            // ball variants (issue #3): heavy/phase last until the current (or next) flight ends
+            case PowerUpKind.HeavyBall:  Variant = BallVariant.Heavy; break;
+            case PowerUpKind.PhaseBall:  Variant = BallVariant.Phase; break;
+            case PowerUpKind.SplitBall:
+                if (InFlight) SplitAll();
+                else PendingSplit = true; // caught between flights → next launch starts doubled
+                break;
         }
     }
 
     private void EndFlight(bool caught)
     {
-        InFlight = false;
-        BallX = PaddleX; BallY = PaddleY; BallVx = BallVy = 0;
+        FlightBalls.Clear();
+        Variant = BallVariant.None;
         Combo = 0;
         _wellsThisFlight.Clear();
         Trail.Clear();

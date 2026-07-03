@@ -167,7 +167,7 @@
     private string _hudBallsText = "";
     private int _hudBallsCached = -1;
     private string _hudEffectsText = "";
-    private (int, int, int) _hudEffectsCached = (-1, -1, -1);
+    private (int, int, int, int, int) _hudEffectsCached = (-1, -1, -1, -1, -1);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -291,7 +291,8 @@
             _hudBallsCached = _engine.Balls;
             _hudBallsText = "Balls: " + new string('●', Math.Max(0, _engine.Balls));
         }
-        var effectsKey = ((int)Math.Ceiling(_engine.WidePaddleTime), (int)Math.Ceiling(_engine.SlowBallTime), _engine.StickyCharges);
+        var effectsKey = ((int)Math.Ceiling(_engine.WidePaddleTime), (int)Math.Ceiling(_engine.SlowBallTime),
+            _engine.StickyCharges, (int)_engine.Variant, _engine.PendingSplit ? 1 : 0);
         if (effectsKey != _hudEffectsCached)
         {
             _hudEffectsCached = effectsKey;
@@ -301,6 +302,8 @@
                     effectsKey.Item1 > 0 ? $"WIDE {effectsKey.Item1}s" : null,
                     effectsKey.Item2 > 0 ? $"SLOW {effectsKey.Item2}s" : null,
                     effectsKey.Item3 > 0 ? "STICKY" : null,
+                    _engine.Variant == BallVariant.Heavy ? "HEAVY" : _engine.Variant == BallVariant.Phase ? "PHASE" : null,
+                    effectsKey.Item5 > 0 ? "SPLIT READY" : null,
                 }.Where(s => s != null));
         }
     }
@@ -310,6 +313,9 @@
         PowerUpKind.WidePaddle => "#22c55e",
         PowerUpKind.SlowBall   => "#38bdf8",
         PowerUpKind.ExtraBall  => "#f59e0b",
+        PowerUpKind.HeavyBall  => "#fb923c",
+        PowerUpKind.SplitBall  => "#f472b6",
+        PowerUpKind.PhaseBall  => "#a78bfa",
         _                      => "#e879f9",
     };
 
@@ -318,6 +324,9 @@
         PowerUpKind.WidePaddle => "W",
         PowerUpKind.SlowBall   => "S",
         PowerUpKind.ExtraBall  => "+1",
+        PowerUpKind.HeavyBall  => "H",
+        PowerUpKind.SplitBall  => "×2",
+        PowerUpKind.PhaseBall  => "P",
         _                      => "C",
     };
 
@@ -415,11 +424,30 @@
                 _engine.PaddleX - _engine.PaddleHalfWidthNow, _engine.PaddleY - Engine.PaddleHeight / 2,
                 _engine.PaddleHalfWidthNow * 2, Engine.PaddleHeight);
 
-            // ball
-            await _ctx.SetFillStyleAsync("#ffffff");
-            await _ctx.BeginPathAsync();
-            await _ctx.ArcAsync(_engine.BallX, _engine.BallY, Engine.BallR, 0, Math.PI * 2);
-            await _ctx.FillAsync();
+            // balls (split can put several in flight); variant tints: heavy=amber, phase=violet
+            var ballColor = _engine.Variant switch
+            {
+                BallVariant.Heavy => "#fb923c",
+                BallVariant.Phase => "#c4b5fd",
+                _                 => "#ffffff",
+            };
+            await _ctx.SetFillStyleAsync(ballColor);
+            if (_engine.InFlight)
+            {
+                foreach (var ball in _engine.FlightBalls)
+                {
+                    await _ctx.BeginPathAsync();
+                    await _ctx.ArcAsync(ball.X, ball.Y, Engine.BallR, 0, Math.PI * 2);
+                    await _ctx.FillAsync();
+                }
+            }
+            else
+            {
+                // resting on the paddle, ready to launch
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(_engine.PaddleX, _engine.PaddleY, Engine.BallR, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+            }
 
             // aim line (manual dashes — no line-dash API dependency)
             if (_aiming && !_engine.InFlight)

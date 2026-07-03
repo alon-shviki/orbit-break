@@ -11,6 +11,14 @@ public class EngineTests
         return e;
     }
 
+    /// <summary>Puts a single ball in flight at the given position/velocity.</summary>
+    private static Ball Fly(Engine e, double x, double y, double vx, double vy)
+    {
+        var ball = new Ball { X = x, Y = y, Vx = vx, Vy = vy };
+        e.FlightBalls.Add(ball);
+        return ball;
+    }
+
     [Fact]
     public void Generator_IsDeterministicPerSeed()
     {
@@ -35,14 +43,13 @@ public class EngineTests
     public void GravityWell_PullsBallTowardIt_AndCreditsCombo()
     {
         var e = NewEngine();
-        e.Wells = new List<Well> { new() { X = 400, Y = 300, Core = 15, Influence = 200, Strength = 2.6e7 } };
+        e.Wells = new List<Well> { new() { X = 400, Y = 300, Core = 15, Influence = 200, Strength = 6e6 } };
         e.Blocks.Clear();
-        e.BallX = 300; e.BallY = 300; e.BallVx = 0; e.BallVy = 0;
-        e.InFlight = true;
+        var ball = Fly(e, 300, 300, 0, 0);
 
         e.Tick(1.0 / 60);
 
-        Assert.True(e.BallVx > 0, "ball should accelerate toward the well on its right");
+        Assert.True(ball.Vx > 0, "ball should accelerate toward the well on its right");
         Assert.Equal(1, e.Combo);
     }
 
@@ -52,8 +59,7 @@ public class EngineTests
         var e = NewEngine();
         e.Wells.Clear();
         e.Blocks = new List<Block> { new() { X = 100, Y = 100, W = 54, H = 22, Kind = BlockKind.Standard, Hp = 1 } };
-        e.BallX = 95; e.BallY = 111; e.BallVx = 100; e.BallVy = 0;
-        e.InFlight = true;
+        Fly(e, 95, 111, 100, 0);
 
         e.Tick(1.0 / 60);
 
@@ -65,23 +71,6 @@ public class EngineTests
     }
 
     [Fact]
-    public void PaddleBounce_ResetsOrbitTrapRecallTimer()
-    {
-        var e = NewEngine();
-        e.Wells.Clear();
-        e.Blocks.Clear();
-        e.PaddleX = 400;
-        e.BallX = 400; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200;
-        e.FlightTime = Engine.MaxFlightSeconds - 1; // one second from forced recall
-        e.InFlight = true;
-
-        e.Tick(1.0 / 60);
-
-        Assert.True(e.InFlight);
-        Assert.True(e.FlightTime < 1, "paddle contact should restart the recall timer — only genuinely trapped orbits get recalled");
-    }
-
-    [Fact]
     public void BallMissesPaddle_ConsumesBalls_ThenGameOver()
     {
         var e = NewEngine();
@@ -90,8 +79,7 @@ public class EngineTests
             Assert.False(e.GameOver);
             e.Wells.Clear();
             e.Blocks.Clear();
-            e.BallX = 50; e.BallY = 599; e.BallVx = 0; e.BallVy = 0; // already past the paddle line
-            e.InFlight = true;
+            Fly(e, 50, 599, 0, 0); // already past the paddle line
             e.Tick(1.0 / 60);
             Assert.Equal(Engine.StartingBalls - 1 - i, e.Balls);
         }
@@ -106,13 +94,12 @@ public class EngineTests
         e.Wells.Clear();
         e.Blocks.Clear();
         e.PaddleX = 400;
-        e.BallX = 400; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200; // falling into paddle center
-        e.InFlight = true;
+        var ball = Fly(e, 400, e.PaddleY - 1, 0, 200); // falling into paddle center
 
         e.Tick(1.0 / 60);
 
         Assert.True(e.InFlight, "a paddle hit should keep the flight going, not end it");
-        Assert.True(e.BallVy < 0, "ball should now be moving upward");
+        Assert.True(ball.Vy < 0, "ball should now be moving upward");
         Assert.Equal(Engine.StartingBalls, e.Balls);
     }
 
@@ -124,14 +111,13 @@ public class EngineTests
         e.Blocks.Clear();
         e.PaddleX = 400;
         // at the dt clamp ceiling (1/30s) a max-speed ball moves 40px — more than the whole
-        // ~26px paddle band, so the old post-move position check never saw the paddle
-        e.BallX = 400; e.BallY = e.PaddleY - 45; e.BallVx = 0; e.BallVy = Engine.MaxBallSpeed;
-        e.InFlight = true;
+        // ~26px paddle band, so a post-move position check would never see the paddle
+        var ball = Fly(e, 400, e.PaddleY - 45, 0, Engine.MaxBallSpeed);
 
         e.Tick(1.0 / 30);
 
         Assert.True(e.InFlight, "ball crossed the paddle band this tick and must bounce, not tunnel");
-        Assert.True(e.BallVy < 0, "ball should be moving upward after the bounce");
+        Assert.True(ball.Vy < 0, "ball should be moving upward after the bounce");
         Assert.Equal(Engine.StartingBalls, e.Balls);
     }
 
@@ -141,13 +127,28 @@ public class EngineTests
         var e = NewEngine();
         e.Wells.Clear();
         e.Blocks.Clear();
-        e.BallX = 400; e.BallY = 300; e.BallVx = 0; e.BallVy = -Engine.MaxBallSpeed * 3;
-        e.InFlight = true;
+        var ball = Fly(e, 400, 300, 0, -Engine.MaxBallSpeed * 3);
 
         e.Tick(1.0 / 60);
 
-        var speed = Math.Sqrt(e.BallVx * e.BallVx + e.BallVy * e.BallVy);
+        var speed = Math.Sqrt(ball.Vx * ball.Vx + ball.Vy * ball.Vy);
         Assert.True(speed <= Engine.MaxBallSpeed * 1.001, $"speed {speed} exceeds cap");
+    }
+
+    [Fact]
+    public void PaddleBounce_ResetsOrbitTrapRecallTimer()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        Fly(e, 400, e.PaddleY - 1, 0, 200);
+        e.FlightTime = Engine.MaxFlightSeconds - 1; // one second from forced recall
+
+        e.Tick(1.0 / 60);
+
+        Assert.True(e.InFlight);
+        Assert.True(e.FlightTime < 1, "paddle contact should restart the recall timer — only genuinely trapped orbits get recalled");
     }
 
     [Fact]
@@ -188,8 +189,7 @@ public class EngineTests
         e.Blocks.Clear();
         e.PaddleX = 400;
         e.StickyCharges = 1;
-        e.BallX = 400; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200;
-        e.InFlight = true;
+        Fly(e, 400, e.PaddleY - 1, 0, 200);
 
         e.Tick(1.0 / 60);
 
@@ -207,13 +207,12 @@ public class EngineTests
         e.PaddleX = 400;
         e.WidePaddleTime = Engine.PowerUpDuration;
         // outside the normal ±70 half-width, inside the widened ±105
-        e.BallX = 495; e.BallY = e.PaddleY - 1; e.BallVx = 0; e.BallVy = 200;
-        e.InFlight = true;
+        var ball = Fly(e, 495, e.PaddleY - 1, 0, 200);
 
         e.Tick(1.0 / 60);
 
         Assert.True(e.InFlight);
-        Assert.True(e.BallVy < 0, "widened paddle should have caught a ball the normal paddle misses");
+        Assert.True(ball.Vy < 0, "widened paddle should have caught a ball the normal paddle misses");
     }
 
     [Fact]
@@ -226,12 +225,78 @@ public class EngineTests
         e.Blocks = new List<Block> { new() { X = 400, Y = 300, W = 10, H = 10, Kind = BlockKind.Explosive, Hp = 1 } };
         for (var i = 0; i < 30; i++)
             e.Blocks.Add(new Block { X = 380 + i, Y = 305, W = 8, H = 8, Kind = BlockKind.Standard, Hp = 1 });
-        e.BallX = 395; e.BallY = 305; e.BallVx = 100; e.BallVy = 0;
-        e.InFlight = true;
+        Fly(e, 395, 305, 100, 0);
 
         e.Tick(1.0 / 60);
 
         Assert.NotEmpty(e.PowerUps);
+    }
+
+    [Fact]
+    public void SplitPickup_MidFlight_ForksEveryBall()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        Fly(e, 400, 100, 0, -10); // one ball high up, out of the way
+        e.PowerUps.Add(new PowerUp { X = 400, Y = e.PaddleY - 20, Kind = PowerUpKind.SplitBall });
+
+        for (var i = 0; i < 30 && e.PowerUps.Count > 0; i++) e.Tick(1.0 / 60);
+
+        Assert.Empty(e.PowerUps);
+        Assert.Equal(2, e.FlightBalls.Count);
+    }
+
+    [Fact]
+    public void LosingOneOfSeveralBalls_KeepsTheFlightAlive_AndCostsNoLife()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 100; // far away — the falling ball will be missed
+        Fly(e, 700, 599, 0, 50);  // about to be lost
+        Fly(e, 400, 100, 0, -10); // safely up top
+
+        e.Tick(1.0 / 60);
+
+        Assert.True(e.InFlight, "one ball is still flying");
+        Assert.Single(e.FlightBalls);
+        Assert.Equal(Engine.StartingBalls, e.Balls); // only losing the LAST ball costs a life
+    }
+
+    [Fact]
+    public void HeavyBall_OneShotsArmored_AndPlowsThroughWithoutBouncing()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks = new List<Block>
+        {
+            new() { X = 100, Y = 100, W = 54, H = 22, Kind = BlockKind.Armored, Hp = 3 },
+            new() { X = 300, Y = 300, W = 54, H = 22, Kind = BlockKind.Standard, Hp = 1 }, // keeps the board non-empty
+        };
+        e.Variant = BallVariant.Heavy;
+        var ball = Fly(e, 95, 111, 100, 0);
+
+        e.Tick(1.0 / 60);
+
+        Assert.False(e.Blocks[0].Alive, "heavy ball should one-shot a 3hp armored block");
+        Assert.True(ball.Vx > 0, "heavy ball plows through instead of bouncing back");
+    }
+
+    [Fact]
+    public void PhaseBall_IgnoresGravityWells_AndEarnsNoCombo()
+    {
+        var e = NewEngine();
+        e.Wells = new List<Well> { new() { X = 400, Y = 300, Core = 15, Influence = 200, Strength = 6e6 } };
+        e.Blocks.Clear();
+        e.Variant = BallVariant.Phase;
+        var ball = Fly(e, 300, 300, 0, -100);
+
+        e.Tick(1.0 / 60);
+
+        Assert.Equal(0, ball.Vx); // no sideways pull
+        Assert.Equal(0, e.Combo);
     }
 
     [Fact]
@@ -244,9 +309,8 @@ public class EngineTests
             new() { X = 300, Y = e.PaddleY - 40, W = 54, H = 22, Kind = BlockKind.Hazard, Hp = 1 },
         };
         // flight-timeout recall (caught, no ball lost) still advances hazards, same as a real return
-        e.BallX = 400; e.BallY = 300; e.BallVx = 0; e.BallVy = 50;
+        Fly(e, 400, 300, 0, 50);
         e.FlightTime = Engine.MaxFlightSeconds + 1;
-        e.InFlight = true;
 
         e.Tick(1.0 / 60);
 

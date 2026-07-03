@@ -12,7 +12,7 @@ Concept → playable. Roughly in order.
 - [x] Combo/scoring system + multiplier stacking (well-entry approximation — refine to deflection detection)
 - [x] Direct-aim launch controls (issue #6 — initial build was a reversed slingshot pull-back, confusing)
 - [x] Controllable paddle (A/D or ←/→) that bounces the ball back instead of an invisible auto-catch zone (issue #8 — user feedback: the drag-only build didn't feel like an active game)
-- [ ] Ball variants: heavy, split, phase (issue #3; design open question: picked between launches vs. mid-flight)
+- [x] Ball variants: heavy, split, phase (issue #3 — rare drops in the #12 pickup channel, flight-scoped modes + true multi-ball; see [[Tech/Engine]])
 - [x] Power-ups: transient pickups dropped from blocks — wider paddle, extra ball, slower ball, sticky paddle (issue #12; 15% seeded drop, paddle-catch only, see [[Tech/Engine]])
 - [x] Juice pass: particles, screen shake, trails (sound + bigger effects later)
 - [x] Playtest & tune: gravity falloff, launch power, paddle speed/width, tier curve (issue #2 — headless bot simulation, see [[Tech/Tuning]]; wells made escapable, recall timer resets on paddle touch, mid-flight clear advance, paddle 760/±70)
