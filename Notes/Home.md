@@ -4,9 +4,12 @@ Physics arena/breakout hybrid. Launch balls that curve around gravity wells to s
 
 ## Quick Start
 
-No code yet — this vault currently holds the concept only. Once the Blazor WASM project is scaffolded, this section gets real run commands (see Bullet Heaven's `Notes/Home.md` for the pattern: full portal stack via `docker compose up`, or client-only dev server).
+```bash
+dotnet run --project OrbitBreak.Client   # client-only dev server (no portal — scores stay local)
+dotnet test OrbitBreak.Tests             # headless engine tests
+```
 
-Auth and scores will live in the portal. See [[Tech/Architecture]].
+Full portal stack (auth + leaderboard) comes via the portal repo's `docker compose up` once this game is wired into its `docker-compose.yml`. Auth and scores live in the portal. See [[Tech/Architecture]].
 
 ## Vault Map
 
@@ -14,7 +17,8 @@ Auth and scores will live in the portal. See [[Tech/Architecture]].
 - [[Design/Core Loop]] — launch/orbit/combo loop, systems, block & ball variety, scope
 
 ### Tech
-- [[Tech/Architecture]] — planned stack, portal integration contract
+- [[Tech/Architecture]] — stack, portal integration contract, build & run
+- [[Tech/Engine]] — game code layout, mechanics as implemented, tuning knobs
 
 ### Work
 - [[Tasks]] — pending tasks to go from concept to playable

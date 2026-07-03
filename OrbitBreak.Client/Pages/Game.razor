@@ -1,0 +1,515 @@
+@page "/"
+@inject IJSRuntime JS
+@inject HttpClient Http
+@using System.Net.Http.Headers
+@implements IDisposable
+
+<PageTitle>Orbit Break</PageTitle>
+
+<div class="game-container">
+
+    @if (_state == GameState.MainMenu)
+    {
+        <div class="menu-overlay">
+            <div class="menu-logo">ORBIT BREAK</div>
+            @if (_loggedInUser != null)
+            {
+                <p class="menu-greeting">Welcome back, <span>@_loggedInUser</span>!</p>
+            }
+            else
+            {
+                <p class="menu-sub">Slingshot the ball around gravity wells. Chain wells for combo multipliers.</p>
+            }
+            <p class="menu-sub" style="font-size:0.85rem">Drag anywhere and release to launch. Catch the ball in the teal zone.</p>
+            <div class="menu-buttons">
+                <button class="btn-normal" @onclick="StartGame">Start Game</button>
+                <button @onclick="ShowLeaderboard">Leaderboard</button>
+            </div>
+            @if (_loggedInUser != null)
+            {
+                <div class="signed-in-badge"><span class="signed-in-dot"></span>Signed in as <b>@_loggedInUser</b></div>
+            }
+            else
+            {
+                <p class="menu-sub" style="font-size:0.85rem;color:#64748b">Sign in at the portal to save scores</p>
+            }
+            @if (_highScore > 0)
+            {
+                <p class="menu-best">Best score: @_highScore.ToString("N0")</p>
+            }
+        </div>
+    }
+
+    @if (_state == GameState.Leaderboard)
+    {
+        <div class="overlay-panel">
+            <div class="panel-header">
+                <span class="panel-title">LEADERBOARD</span>
+                <button class="btn-back" @onclick='() => { _state = GameState.MainMenu; StateHasChanged(); }'>← Back</button>
+            </div>
+            <div style="padding: 24px; overflow-y: auto; flex: 1;">
+                @if (_leaderboardLoading)
+                {
+                    <p style="color:#64748b; font-family: monospace;">Loading...</p>
+                }
+                else if (_leaderboard == null)
+                {
+                    <p style="color:#ef4444; font-family: monospace;">Could not load leaderboard.</p>
+                }
+                else if (_leaderboard.Count == 0)
+                {
+                    <p style="color:#64748b; font-family: monospace;">No scores yet — be the first!</p>
+                }
+                else
+                {
+                    <table class="leaderboard-table">
+                        <thead>
+                            <tr><th>#</th><th>Player</th><th>Score</th><th>Blocks</th><th>Tier</th><th>Date</th></tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < _leaderboard.Count; i++)
+                            {
+                                var entry = _leaderboard[i];
+                                var rank = i + 1;
+                                var rankClass = rank == 1 ? "rank-gold" : rank == 2 ? "rank-silver" : rank == 3 ? "rank-bronze" : "";
+                                <tr class="@(entry.Username == _loggedInUser ? "row-self" : "")">
+                                    <td class="@rankClass">@rank</td>
+                                    <td>@entry.Username</td>
+                                    <td>@entry.Value.ToString("N0")</td>
+                                    <td>@entry.Kills</td>
+                                    <td>@entry.Level</td>
+                                    <td>@entry.PlayedAt.ToLocalTime().ToString("MMM d")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+
+    @if (_state == GameState.GameOver)
+    {
+        <div class="menu-overlay">
+            <h1 style="color:#ef4444">RUN OVER</h1>
+            <p style="color:#94a3b8">@_engine.GameOverReason &nbsp;|&nbsp; Tier @_engine.Tier &nbsp;|&nbsp; @_engine.BlocksBroken blocks</p>
+            <p style="color:#ffffff">Score: @_engine.Score.ToString("N0")</p>
+            <p style="color:#f59e0b">Best: @_highScore.ToString("N0")</p>
+            @if (_loggedInUser != null && _personalBest is { Count: > 0 })
+            {
+                <div class="personal-best">
+                    <div class="personal-best-title">YOUR BEST RUNS</div>
+                    <table class="personal-best-table">
+                        <tbody>
+                            @foreach (var run in _personalBest)
+                            {
+                                <tr>
+                                    <td>@run.Value.ToString("N0")</td>
+                                    <td>@run.Kills blocks</td>
+                                    <td>Tier @run.Level</td>
+                                    <td>@run.PlayedAt.ToLocalTime().ToString("MMM d")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <div class="menu-buttons">
+                <button class="btn-normal" @onclick="StartGame">Play Again</button>
+                <button @onclick="ShowLeaderboard">Leaderboard</button>
+                <button @onclick='() => { _state = GameState.MainMenu; StateHasChanged(); }'>Main Menu</button>
+            </div>
+        </div>
+    }
+
+    <BECanvas Width="@_canvasW" Height="@_canvasH" @ref="_canvasRef" />
+
+</div>
+
+@code {
+    private BECanvasComponent _canvasRef = default!;
+    private Canvas2DContext _ctx = default!;
+    private DotNetObjectReference<Game> _dotNetRef = default!;
+
+    private enum GameState { MainMenu, Playing, GameOver, Leaderboard }
+    private GameState _state = GameState.MainMenu;
+
+    private string? _jwtToken;
+    private string? _loggedInUser;
+    private string _hudUserText = "";
+
+    private record LeaderboardEntry(string Username, int Value, int Kills, int Level, DateTime PlayedAt);
+    private List<LeaderboardEntry>? _leaderboard;
+    private bool _leaderboardLoading;
+    private record PersonalBestEntry(int Value, int Kills, int Level, DateTime PlayedAt);
+    private List<PersonalBestEntry>? _personalBest;
+
+    private readonly Engine _engine = new();
+    private int _canvasW = 800;
+    private int _canvasH = 600;
+    private bool _contextCreated;
+    private int _highScore;
+
+    private double _lastTimestamp;
+    private bool _loopStarted;
+
+    // current drag aim (valid only while dragging with a launchable vector)
+    private bool _aiming;
+    private double _aimVx, _aimVy;
+
+    // HUD string caches — rebuilt only when the value changes, never per frame
+    private string _hudScoreText = "Score: 0";
+    private int _hudScoreCached = -1;
+    private string _hudComboText = "";
+    private int _hudComboCached = -1;
+    private string _hudTierText = "";
+    private int _hudTierCached = -1, _hudLaunchesCached = -1;
+    private string _hudBallsText = "";
+    private int _hudBallsCached = -1;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var size = await JS.InvokeAsync<int[]>("gameInterop.getViewportSize");
+            _canvasW = size[0];
+            _canvasH = size[1];
+            _engine.Width = _canvasW;
+            _engine.Height = _canvasH;
+            StateHasChanged();
+            return;
+        }
+
+        if (!_contextCreated)
+        {
+            _contextCreated = true;
+            _ctx = await _canvasRef.CreateCanvas2DAsync();
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("gameInterop.initInput");
+            await JS.InvokeVoidAsync("gameInterop.startLoop", _dotNetRef);
+            var saved = await JS.InvokeAsync<string?>("localStorage.getItem", "ob_highscore");
+            if (int.TryParse(saved, out var hs)) _highScore = hs;
+            var savedToken = await JS.InvokeAsync<string?>("localStorage.getItem", "jwt");
+            if (!string.IsNullOrEmpty(savedToken))
+            {
+                _jwtToken = savedToken;
+                _loggedInUser = ParseUsernameFromJwt(savedToken);
+                _hudUserText = _loggedInUser == null ? "" : $"◉ {_loggedInUser}";
+            }
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public async Task Tick(double timestamp)
+    {
+        if (!_loopStarted) { _loopStarted = true; _lastTimestamp = timestamp; return; }
+        var dt = (timestamp - _lastTimestamp) / 1000.0;
+        _lastTimestamp = timestamp;
+
+        if (_state == GameState.Playing)
+        {
+            await PollInputAsync();
+            _engine.Tick(dt);
+
+            if (_engine.GameOver)
+            {
+                if (_engine.Score > _highScore)
+                {
+                    _highScore = _engine.Score;
+                    await JS.InvokeVoidAsync("localStorage.setItem", "ob_highscore", _highScore.ToString());
+                }
+                _state = GameState.GameOver;
+                StateHasChanged();
+                if (_jwtToken != null)
+                {
+                    await SubmitScoreAsync();
+                    await FetchPersonalBestAsync();
+                    StateHasChanged();
+                }
+            }
+        }
+
+        await Render();
+    }
+
+    private async Task PollInputAsync()
+    {
+        // [down, x, y, startX, startY, releasedEdge, releaseX, releaseY]
+        var p = await JS.InvokeAsync<double[]>("gameInterop.getPointerState");
+        _aiming = false;
+        if (_engine.InFlight) return;
+
+        if (p[0] != 0)
+        {
+            var (vx, vy, valid) = AimVector(p[3], p[4], p[1], p[2]);
+            if (valid) { _aiming = true; _aimVx = vx; _aimVy = vy; }
+        }
+        if (p[5] != 0)
+        {
+            var (vx, vy, valid) = AimVector(p[3], p[4], p[6], p[7]);
+            if (valid) _engine.Launch(vx, vy);
+        }
+    }
+
+    // Slingshot: pull back from the drag start; must point upward, speed clamped
+    private static (double Vx, double Vy, bool Valid) AimVector(double startX, double startY, double curX, double curY)
+    {
+        var vx = (startX - curX) * 3.5;
+        var vy = (startY - curY) * 3.5;
+        var mag = Math.Sqrt(vx * vx + vy * vy);
+        if (mag < 60 || vy >= 0) return (0, 0, false);
+        var speed = Math.Clamp(mag, 380, 1000);
+        return (vx / mag * speed, vy / mag * speed, true);
+    }
+
+    private void RefreshHudCaches()
+    {
+        if (_engine.Score != _hudScoreCached)
+        {
+            _hudScoreCached = _engine.Score;
+            _hudScoreText = $"Score: {_engine.Score:N0}";
+        }
+        if (_engine.Combo != _hudComboCached)
+        {
+            _hudComboCached = _engine.Combo;
+            _hudComboText = $"COMBO x{_engine.Multiplier:0.#}";
+        }
+        var untilShift = Engine.LaunchesPerTier - _engine.Launches % Engine.LaunchesPerTier;
+        if (_engine.Tier != _hudTierCached || untilShift != _hudLaunchesCached)
+        {
+            _hudTierCached = _engine.Tier;
+            _hudLaunchesCached = untilShift;
+            _hudTierText = $"Tier {_engine.Tier}  shift in {untilShift}";
+        }
+        if (_engine.Balls != _hudBallsCached)
+        {
+            _hudBallsCached = _engine.Balls;
+            _hudBallsText = "Balls: " + new string('●', Math.Max(0, _engine.Balls));
+        }
+    }
+
+    private async Task Render()
+    {
+        await _ctx.BeginBatchAsync();
+        await _ctx.SaveAsync();
+
+        if (_engine.Shake > 0)
+            await _ctx.TranslateAsync((Random.Shared.NextDouble() - 0.5) * 10, (Random.Shared.NextDouble() - 0.5) * 10);
+
+        await _ctx.ClearRectAsync(-10, -10, _canvasW + 20, _canvasH + 20);
+
+        if (_state is GameState.Playing or GameState.GameOver)
+        {
+            // catch zone
+            await _ctx.SetFillStyleAsync("rgba(31, 214, 196, 0.35)");
+            await _ctx.FillRectAsync(_engine.LauncherX - Engine.CatchHalf, _canvasH - 6.0, Engine.CatchHalf * 2, 6);
+
+            // gravity wells: faint influence ring + solid core
+            foreach (var w in _engine.Wells)
+            {
+                await _ctx.SetGlobalAlphaAsync(0.12f);
+                await _ctx.SetFillStyleAsync("#818cf8");
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(w.X, w.Y, w.Influence, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                await _ctx.SetGlobalAlphaAsync(1.0f);
+
+                await _ctx.SetFillStyleAsync("#a78bfa");
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(w.X, w.Y, w.Core, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                await _ctx.SetFillStyleAsync("#1e1b4b");
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(w.X, w.Y, w.Core * 0.55, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+            }
+
+            // blocks
+            foreach (var b in _engine.Blocks)
+            {
+                if (!b.Alive) continue;
+                await _ctx.SetFillStyleAsync(Engine.ColorOf(b.Kind));
+                await _ctx.FillRectAsync(b.X, b.Y, b.W, b.H);
+
+                if (b.Kind == BlockKind.Hazard)
+                {
+                    await _ctx.SetFillStyleAsync("#fecaca");
+                    await _ctx.SetFontAsync("bold 12px monospace");
+                    await _ctx.FillTextAsync("▼", b.CenterX - 4, b.CenterY + 4);
+                }
+
+                if (b.Kind == BlockKind.Armored && b.Hp < 3)
+                {
+                    await _ctx.SetFillStyleAsync("#333");
+                    await _ctx.FillRectAsync(b.X, b.Y - 6, b.W, 3);
+                    await _ctx.SetFillStyleAsync("#22c55e");
+                    await _ctx.FillRectAsync(b.X, b.Y - 6, b.W * b.Hp / 3.0, 3);
+                }
+
+                if (b.HitFlash > 0)
+                {
+                    await _ctx.SetGlobalAlphaAsync(0.55f);
+                    await _ctx.SetFillStyleAsync("#ffffff");
+                    await _ctx.FillRectAsync(b.X, b.Y, b.W, b.H);
+                    await _ctx.SetGlobalAlphaAsync(1.0f);
+                }
+            }
+
+            // ball trail
+            var ti = 0;
+            foreach (var (tx, ty) in _engine.Trail)
+            {
+                await _ctx.SetGlobalAlphaAsync(0.35f * ti / Math.Max(1, _engine.Trail.Count));
+                await _ctx.SetFillStyleAsync("#e0f2fe");
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(tx, ty, Engine.BallR * 0.6, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                ti++;
+            }
+            await _ctx.SetGlobalAlphaAsync(1.0f);
+
+            // launcher chevron
+            await _ctx.SetFillStyleAsync("#1fd6c4");
+            await _ctx.BeginPathAsync();
+            await _ctx.MoveToAsync(_engine.LauncherX, _engine.LauncherY - 12);
+            await _ctx.LineToAsync(_engine.LauncherX - 12, _engine.LauncherY + 8);
+            await _ctx.LineToAsync(_engine.LauncherX + 12, _engine.LauncherY + 8);
+            await _ctx.FillAsync();
+
+            // ball
+            await _ctx.SetFillStyleAsync("#ffffff");
+            await _ctx.BeginPathAsync();
+            await _ctx.ArcAsync(_engine.BallX, _engine.BallY, Engine.BallR, 0, Math.PI * 2);
+            await _ctx.FillAsync();
+
+            // aim line (manual dashes — no line-dash API dependency)
+            if (_aiming && !_engine.InFlight)
+            {
+                var mag = Math.Sqrt(_aimVx * _aimVx + _aimVy * _aimVy);
+                var ux = _aimVx / mag; var uy = _aimVy / mag;
+                var len = 60 + mag * 0.12;
+                await _ctx.SetStrokeStyleAsync("#f8fafc");
+                await _ctx.SetLineWidthAsync(2);
+                await _ctx.BeginPathAsync();
+                for (double t = 0; t < len; t += 16)
+                {
+                    await _ctx.MoveToAsync(_engine.LauncherX + ux * t, _engine.LauncherY + uy * t);
+                    await _ctx.LineToAsync(_engine.LauncherX + ux * (t + 8), _engine.LauncherY + uy * (t + 8));
+                }
+                await _ctx.StrokeAsync();
+            }
+
+            // particles
+            foreach (var pt in _engine.Particles)
+            {
+                await _ctx.SetGlobalAlphaAsync((float)Math.Min(1, pt.Life));
+                await _ctx.SetFillStyleAsync(pt.Color);
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(pt.X, pt.Y, 3, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+            }
+            await _ctx.SetGlobalAlphaAsync(1.0f);
+
+            // HUD
+            RefreshHudCaches();
+            await _ctx.SetFontAsync("bold 16px monospace");
+            await _ctx.SetFillStyleAsync("#ffffff");
+            await _ctx.FillTextAsync(_hudScoreText, 10, 24);
+            await _ctx.SetFillStyleAsync("#94a3b8");
+            await _ctx.FillTextAsync(_hudTierText, 10, 48);
+            await _ctx.SetFillStyleAsync("#1fd6c4");
+            await _ctx.FillTextAsync(_hudBallsText, 10, 72);
+            if (_engine.Combo > 0)
+            {
+                await _ctx.SetFillStyleAsync("#f97316");
+                await _ctx.FillTextAsync(_hudComboText, 10, 96);
+            }
+
+            await _ctx.SetTextAlignAsync(TextAlign.Right);
+            if (_loggedInUser != null)
+            {
+                await _ctx.SetFontAsync("bold 14px monospace");
+                await _ctx.SetFillStyleAsync("#1fd6c4");
+                await _ctx.FillTextAsync(_hudUserText, _canvasW - 12, 24);
+            }
+            else
+            {
+                await _ctx.SetFontAsync("11px monospace");
+                await _ctx.SetFillStyleAsync("#64748b");
+                await _ctx.FillTextAsync("guest — sign in to save scores", _canvasW - 12, 24);
+            }
+            await _ctx.SetTextAlignAsync(TextAlign.Left);
+        }
+
+        await _ctx.RestoreAsync();
+        await _ctx.EndBatchAsync();
+    }
+
+    private void StartGame()
+    {
+        _engine.Reset(Random.Shared.Next());
+        _personalBest = null;
+        _hudScoreCached = _hudComboCached = _hudTierCached = _hudLaunchesCached = _hudBallsCached = -1;
+        _state = GameState.Playing;
+        StateHasChanged();
+    }
+
+    private async Task ShowLeaderboard()
+    {
+        _state = GameState.Leaderboard;
+        _leaderboardLoading = true;
+        _leaderboard = null;
+        StateHasChanged();
+        try
+        {
+            _leaderboard = await Http.GetFromJsonAsync<List<LeaderboardEntry>>("api/leaderboard");
+        }
+        catch { _leaderboard = null; }
+        _leaderboardLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task SubmitScoreAsync()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/scores")
+        {
+            Content = JsonContent.Create(new { Value = _engine.Score, Kills = _engine.BlocksBroken, Level = _engine.Tier })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _jwtToken);
+        try { await Http.SendAsync(request); }
+        catch { /* silent — score submission must never crash the game */ }
+    }
+
+    private async Task FetchPersonalBestAsync()
+    {
+        _personalBest = null;
+        var request = new HttpRequestMessage(HttpMethod.Get, "api/scores/me");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _jwtToken);
+        try
+        {
+            var resp = await Http.SendAsync(request);
+            if (resp.IsSuccessStatusCode)
+                _personalBest = await resp.Content.ReadFromJsonAsync<List<PersonalBestEntry>>();
+        }
+        catch { /* silent — the panel simply stays hidden */ }
+    }
+
+    private static string? ParseUsernameFromJwt(string? token)
+    {
+        if (token == null) return null;
+        var parts = token.Split('.');
+        if (parts.Length < 2) return null;
+        var payload = parts[1];
+        payload += new string('=', (4 - payload.Length % 4) % 4);
+        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        return doc.RootElement.TryGetProperty("unique_name", out var v) ? v.GetString() : null;
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+        JS.InvokeVoidAsync("gameInterop.stopLoop");
+    }
+}
