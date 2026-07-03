@@ -8,9 +8,15 @@ window.gameInterop = {
     },
 
     startLoop(dotnetRef) {
-        function tick(timestamp) {
-            dotnetRef.invokeMethodAsync('Tick', timestamp);
+        // busy guard: if C# is still processing the previous tick, skip this frame instead of
+        // queueing a backlog of overlapping Tick calls — dropped frames are absorbed by dt (issue #10)
+        let busy = false;
+        async function tick(timestamp) {
             window._rafId = requestAnimationFrame(tick);
+            if (busy) return;
+            busy = true;
+            try { await dotnetRef.invokeMethodAsync('Tick', timestamp); }
+            finally { busy = false; }
         }
         window._rafId = requestAnimationFrame(tick);
     },
@@ -41,20 +47,17 @@ window.gameInterop = {
         window.addEventListener('keyup', e => { g._keys[e.code] = false; });
     },
 
-    // [down, x, y, startX, startY, releasedEdge, releaseX, releaseY]
-    getPointerState() {
+    // One interop round-trip per frame instead of two (issue #10).
+    // [axis, down, x, y, startX, startY, releasedEdge, releaseX, releaseY]
+    // axis: -1 (left), 0, or 1 (right) — A/D or arrow keys move the paddle
+    getInputState() {
         const g = window.gameInterop;
-        const released = g._released ? 1 : 0;
-        g._released = false;
-        return [g._down ? 1 : 0, g._x, g._y, g._sx, g._sy, released, g._rx, g._ry];
-    },
-
-    // -1 (left), 0, or 1 (right) — A/D or arrow keys move the paddle
-    getPaddleAxis() {
-        const k = window.gameInterop._keys;
+        const k = g._keys;
         let ax = 0;
         if (k['KeyA'] || k['ArrowLeft'])  ax -= 1;
         if (k['KeyD'] || k['ArrowRight']) ax += 1;
-        return ax;
+        const released = g._released ? 1 : 0;
+        g._released = false;
+        return [ax, g._down ? 1 : 0, g._x, g._y, g._sx, g._sy, released, g._rx, g._ry];
     }
 };

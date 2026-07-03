@@ -29,9 +29,11 @@ All constants sit at the top of `Engine.cs` (ball radius, paddle width/speed, la
 
 ## Known issues
 
-- **Frame pacing** (issue #10) — two un-batched JS interop input calls per frame plus the dt clamp's slow-motion behaviour under sustained low fps still need attention; the runaway-speed contributor is fixed (see below).
+_None currently tracked here — check the GitHub issue list._
 
 ## Fixed
+
+- **Frame pacing / stutter** (issue #10) — three contributors addressed: (1) runaway ball speed capped (see #11 below); (2) the two per-frame JS interop input calls merged into one `getInputState` round-trip; (3) the rAF loop now has a busy guard — if C# is still processing the previous tick it skips the frame instead of queueing overlapping `Tick` calls, and the skipped time is absorbed by dt. The dt clamp (1/30s) still means sustained sub-30fps plays in slow motion rather than skipping — acceptable; revisit only if reports persist.
 
 - **Ball speed cap + paddle tunneling** (issue #11) — speed is now clamped to `MaxBallSpeed` (1200 px/s) every tick, and the paddle check is *swept*: it tests the path the ball travelled this frame against the paddle band and bounces at the crossing point, so no speed inside the cap can tunnel through. Block collision remains a discrete check (missing a block costs nothing, unlike missing the paddle).
 
