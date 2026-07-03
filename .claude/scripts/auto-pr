@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Usage: auto-pr "PR title"
+# Run from inside a worktree created by start-task.
+# Commits all changes, pushes, opens PR, then removes the worktree.
+set -e
+
+TITLE="${1:-}"
+WORKTREE=$(git rev-parse --show-toplevel)
+MAIN_REPO=$(git worktree list | awk 'NR==1{print $1}')
+BRANCH=$(git branch --show-current)
+IN_WORKTREE=false
+[ "$WORKTREE" != "$MAIN_REPO" ] && IN_WORKTREE=true
+
+if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+  echo "auto-pr: no changes, nothing to do"
+  exit 0
+fi
+
+if [ -z "$BRANCH" ] || [ "$BRANCH" = "main" ]; then
+  echo "auto-pr: not on a feature branch — run start-task first"
+  exit 1
+fi
+
+git add -A
+git commit -m "${TITLE:-auto: $(basename "$BRANCH")}"
+git push -u origin "$BRANCH"
+
+if gh pr view --json state -q .state 2>/dev/null | grep -q "OPEN"; then
+  echo "auto-pr: PR already open, pushed update"
+else
+  if [ -n "$TITLE" ]; then
+    gh pr create --title "$TITLE" --body "Opened by Claude Code." --base main
+  else
+    gh pr create --fill --base main
+  fi
+fi
+
+# Remove worktree — branch is on remote, local copy no longer needed
+if $IN_WORKTREE; then
+  cd "$MAIN_REPO"
+  git worktree remove "$WORKTREE" --force
+  git checkout main
+  git pull origin main
+  echo "Worktree removed, main is up to date."
+fi

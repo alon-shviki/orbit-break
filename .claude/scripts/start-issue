@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Usage: start-issue <number> [repo-slug]
+# repo-slug: bh, portal, or full "owner/name"
+# With no slug, searches all managed repos (errors if ambiguous).
+set -e
+
+# ── Managed repos — add new games here ───────────────────────────────────────
+declare -A REPOS=(
+  [portal]="alon-shviki/game-portal"
+  [bh]="alon-shviki/Bullet-Heaven"
+  [ob]="alon-shviki/orbit-break"
+)
+declare -A ROOTS=(
+  [portal]="$HOME/Desktop/game"
+  [bh]="$HOME/Desktop/Bullet-Heaven"
+  [ob]="$HOME/Desktop/orbit-break"
+)
+# ─────────────────────────────────────────────────────────────────────────────
+
+ISSUE="$1"
+SLUG="${2:-}"
+
+[ -z "$ISSUE" ] && { echo "Usage: start-issue <number> [repo-slug]"; echo "Slugs: ${!REPOS[*]}"; exit 1; }
+
+# Auto-detect slug from the current repo's git remote (fast path, no API call)
+if [ -z "$SLUG" ]; then
+  CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null | sed 's|.*[:/]\([^/]*/[^/]*\)$|\1|; s|\.git$||')
+  for key in "${!REPOS[@]}"; do
+    if [ "${REPOS[$key]}" = "$CURRENT_REMOTE" ]; then SLUG="$key"; break; fi
+  done
+fi
+
+# Resolve repo + root
+if [ -n "$SLUG" ]; then
+  REPO="${REPOS[$SLUG]:-$SLUG}"
+  ROOT="${ROOTS[$SLUG]:-$HOME/Desktop/$SLUG}"
+else
+  FOUND_REPO=""; FOUND_ROOT=""
+  for key in "${!REPOS[@]}"; do
+    if gh issue view "$ISSUE" --repo "${REPOS[$key]}" &>/dev/null; then
+      if [ -n "$FOUND_REPO" ]; then
+        echo "Issue #$ISSUE exists in multiple repos — be specific: start-issue $ISSUE <slug>"
+        echo "Slugs: ${!REPOS[*]}"; exit 1
+      fi
+      FOUND_REPO="${REPOS[$key]}"; FOUND_ROOT="${ROOTS[$key]}"
+    fi
+  done
+  [ -z "$FOUND_REPO" ] && { echo "Issue #$ISSUE not found in any managed repo."; exit 1; }
+  REPO="$FOUND_REPO"; ROOT="$FOUND_ROOT"
+fi
+
+TITLE_SLUG=$(gh issue view "$ISSUE" --repo "$REPO" --json title -q '.title | ascii_downcase | gsub("[^a-z0-9]+"; "-") | .[0:35]')
+BRANCH="feat/issue-${ISSUE}-${TITLE_SLUG}"
+WORKTREE="${ROOT}/.worktrees/issue-${ISSUE}"
+
+git -C "$ROOT" fetch origin
+mkdir -p "${ROOT}/.worktrees"
+git -C "$ROOT" worktree add "$WORKTREE" -b "$BRANCH" origin/main
+
+echo ""
+gh issue view "$ISSUE" --repo "$REPO"
+echo ""
+echo "Repo:     $REPO"
+echo "Worktree: $WORKTREE"
+echo "Branch:   $BRANCH"
+echo "When done: cd \"$WORKTREE\" && finish-issue"
+
+# For non-portal games: print the game config files Claude must read before starting
+if [ "$SLUG" != "portal" ] && [ -n "$SLUG" ]; then
+  echo ""
+  echo "━━━ LOAD GAME CONTEXT (read all before touching any code) ━━━"
+  echo "  $ROOT/CLAUDE.md"
+  for f in "$ROOT/.claude/rules/"*.md; do
+    [ -e "$f" ] && echo "  $f"
+  done
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+fi

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Run from inside the worktree when work is done.
+set -e
+
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+BRANCH=$(git branch --show-current)
+WORKTREE=$(git rev-parse --show-toplevel)
+MAIN_REPO=$(git worktree list | head -1 | awk '{print $1}')
+ISSUE_NUM=$(echo "$BRANCH" | grep -oE '[0-9]+' | head -1)
+
+# Run tests if a .Tests.csproj exists
+TESTPROJ=$(find . -name "*.Tests.csproj" -maxdepth 4 | head -1)
+if [ -n "$TESTPROJ" ]; then
+  echo "Running tests: $TESTPROJ"
+  dotnet test "$TESTPROJ" -c Release || { echo "Tests failed — fix before merging."; exit 1; }
+else
+  echo "No test project found — skipping tests."
+fi
+
+# Commit if there are changes
+git add -A
+if ! git diff --cached --quiet; then
+  TITLE=$(gh issue view "$ISSUE_NUM" --repo "$REPO" --json title -q .title 2>/dev/null || echo "fix: issue #${ISSUE_NUM}")
+  git commit -m "$TITLE"
+fi
+
+git push -u origin "$BRANCH"
+
+# Open PR, link to issue, wait for CI, merge
+PR_URL=$(gh pr create --fill --base main --body "Closes #${ISSUE_NUM}")
+PR_NUM=$(basename "$PR_URL")
+echo "PR: $PR_URL"
+echo "Waiting for CI..."
+gh pr checks "$PR_NUM" --watch
+gh pr merge "$PR_NUM" --squash --delete-branch
+
+# Clean up worktree and sync main
+cd "$MAIN_REPO"
+git worktree remove "$WORKTREE" --force
+git checkout main
+git pull origin main
+echo "Done — worktree removed, main is up to date."

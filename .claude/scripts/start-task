@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Usage: start-task <branch-name> [slug]
+# Creates a worktree for non-issue work (docs, config, small fixes).
+# Use start-issue if a GitHub issue exists.
+set -e
+
+declare -A REPOS=(
+  [portal]="alon-shviki/game-portal"
+  [bh]="alon-shviki/Bullet-Heaven"
+  [ob]="alon-shviki/orbit-break"
+)
+declare -A ROOTS=(
+  [portal]="$HOME/Desktop/game"
+  [bh]="$HOME/Desktop/Bullet-Heaven"
+  [ob]="$HOME/Desktop/orbit-break"
+)
+
+NAME="$1"
+SLUG="${2:-}"
+
+[ -z "$NAME" ] && { echo "Usage: start-task <branch-name> [slug]"; echo "Slugs: ${!REPOS[*]}"; exit 1; }
+
+# Auto-detect repo from current git remote
+if [ -z "$SLUG" ]; then
+  CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null | sed 's|.*[:/]\([^/]*/[^/]*\)$|\1|; s|\.git$||')
+  for key in "${!REPOS[@]}"; do
+    if [ "${REPOS[$key]}" = "$CURRENT_REMOTE" ]; then SLUG="$key"; break; fi
+  done
+fi
+[ -z "$SLUG" ] && { echo "Cannot detect repo — specify a slug: start-task $NAME <slug>"; echo "Slugs: ${!REPOS[*]}"; exit 1; }
+
+ROOT="${ROOTS[$SLUG]}"
+BRANCH="feat/${NAME}"
+WORKTREE="${ROOT}/.worktrees/task-${NAME}"
+
+git -C "$ROOT" fetch origin
+mkdir -p "${ROOT}/.worktrees"
+git -C "$ROOT" worktree add "$WORKTREE" -b "$BRANCH" origin/main
+
+echo ""
+echo "Repo:     ${REPOS[$SLUG]}"
+echo "Worktree: $WORKTREE"
+echo "Branch:   $BRANCH"
+echo "When done: cd \"$WORKTREE\" && auto-pr \"description\""
+
+if [ "$SLUG" != "portal" ]; then
+  echo ""
+  echo "━━━ LOAD GAME CONTEXT (read all before touching any code) ━━━"
+  echo "  $ROOT/CLAUDE.md"
+  for f in "$ROOT/.claude/rules/"*.md; do
+    [ -e "$f" ] && echo "  $f"
+  done
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+fi
