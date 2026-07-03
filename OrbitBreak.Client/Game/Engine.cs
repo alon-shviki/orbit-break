@@ -45,6 +45,7 @@ public class Engine
     public const int    LaunchesPerTier = 5;    // constellation regenerates one tier harder every N launches
     public const int    StartingBalls = 3;
     public const double MaxFlightSeconds = 25;  // trapped-orbit recall, counts as a catch
+    public const double MaxBallSpeed = 1200;    // wells can slingshot above launch speed (max 1000) but not runaway
     public const double HazardStep = 30;        // px a hazard block descends per launch
     public const double ExplosionRadius = 80;
 
@@ -157,6 +158,15 @@ public class Engine
             }
         }
 
+        // cap speed: wells add velocity every frame with no natural limit (issues #10, #11)
+        var ballSpeed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
+        if (ballSpeed > MaxBallSpeed)
+        {
+            BallVx *= MaxBallSpeed / ballSpeed;
+            BallVy *= MaxBallSpeed / ballSpeed;
+        }
+
+        var prevX = BallX; var prevY = BallY;
         BallX += BallVx * dt;
         BallY += BallVy * dt;
 
@@ -169,16 +179,26 @@ public class Engine
         if (BallY < BallR)          { BallY = BallR;          BallVy = Math.Abs(BallVy) * 0.98; }
 
         // paddle: reflects the ball back into play — hit offset from center steers the bounce angle,
-        // like classic Breakout/Arkanoid, instead of silently ending the flight
+        // like classic Breakout/Arkanoid, instead of silently ending the flight.
+        // Swept check: a fast ball can cross the whole ~26px paddle band in one tick, so test the
+        // path travelled this frame (prev → current), not just the final position (issue #11).
+        var paddleTop = PaddleY - PaddleHeight / 2;
         if (BallVy > 0
-            && BallY + BallR >= PaddleY - PaddleHeight / 2 && BallY - BallR <= PaddleY + PaddleHeight / 2
-            && BallX + BallR >= PaddleX - PaddleHalfWidth && BallX - BallR <= PaddleX + PaddleHalfWidth)
+            && prevY + BallR <= PaddleY + PaddleHeight / 2  // started at/above the band's bottom
+            && BallY + BallR >= paddleTop)                  // ended at/below the band's top
         {
-            var offset = Math.Clamp((BallX - PaddleX) / PaddleHalfWidth, -1, 1);
-            var speed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
-            BallVx = offset * speed;
-            BallVy = -Math.Sqrt(Math.Max(speed * speed - BallVx * BallVx, speed * speed * 0.25));
-            BallY = PaddleY - PaddleHeight / 2 - BallR - 0.5;
+            // X position at the moment the ball's bottom edge crossed the paddle's top
+            var t = Math.Clamp((paddleTop - (prevY + BallR)) / Math.Max(BallY - prevY, 1e-9), 0, 1);
+            var xAtCross = prevX + (BallX - prevX) * t;
+            if (xAtCross + BallR >= PaddleX - PaddleHalfWidth && xAtCross - BallR <= PaddleX + PaddleHalfWidth)
+            {
+                var offset = Math.Clamp((xAtCross - PaddleX) / PaddleHalfWidth, -1, 1);
+                var speed = Math.Sqrt(BallVx * BallVx + BallVy * BallVy);
+                BallVx = offset * speed;
+                BallVy = -Math.Sqrt(Math.Max(speed * speed - BallVx * BallVx, speed * speed * 0.25));
+                BallX = xAtCross;
+                BallY = paddleTop - BallR - 0.5;
+            }
         }
 
         // past the paddle with nothing to stop it = lost

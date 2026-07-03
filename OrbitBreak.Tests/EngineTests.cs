@@ -98,6 +98,40 @@ public class EngineTests
     }
 
     [Fact]
+    public void FastBall_StillBouncesOffPaddle_InsteadOfTunneling()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        // at the dt clamp ceiling (1/30s) a max-speed ball moves 40px — more than the whole
+        // ~26px paddle band, so the old post-move position check never saw the paddle
+        e.BallX = 400; e.BallY = e.PaddleY - 45; e.BallVx = 0; e.BallVy = Engine.MaxBallSpeed;
+        e.InFlight = true;
+
+        e.Tick(1.0 / 30);
+
+        Assert.True(e.InFlight, "ball crossed the paddle band this tick and must bounce, not tunnel");
+        Assert.True(e.BallVy < 0, "ball should be moving upward after the bounce");
+        Assert.Equal(Engine.StartingBalls, e.Balls);
+    }
+
+    [Fact]
+    public void BallSpeed_IsCappedAtMaxBallSpeed()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.BallX = 400; e.BallY = 300; e.BallVx = 0; e.BallVy = -Engine.MaxBallSpeed * 3;
+        e.InFlight = true;
+
+        e.Tick(1.0 / 60);
+
+        var speed = Math.Sqrt(e.BallVx * e.BallVx + e.BallVy * e.BallVy);
+        Assert.True(speed <= Engine.MaxBallSpeed * 1.001, $"speed {speed} exceeds cap");
+    }
+
+    [Fact]
     public void HazardReachingPaddleLine_EndsRun()
     {
         var e = NewEngine();
