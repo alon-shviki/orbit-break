@@ -300,6 +300,42 @@ public class EngineTests
     }
 
     [Fact]
+    public void Generator_SpawnsMoversOnlyFromTierFour()
+    {
+        for (var seed = 1; seed <= 10; seed++)
+        {
+            var (_, lowTier) = Constellation.Generate(new Random(seed), 3, 800, 600);
+            Assert.DoesNotContain(lowTier, b => b.Vx != 0);
+        }
+        // over several seeds tier 6 (15% mover chance) should produce at least one mover
+        var found = false;
+        for (var seed = 1; seed <= 10 && !found; seed++)
+        {
+            var (_, highTier) = Constellation.Generate(new Random(seed), 6, 800, 600);
+            found = highTier.Any(b => b.Vx != 0);
+            Assert.DoesNotContain(highTier, b => b.Vx != 0 && b.Kind == BlockKind.Hazard);
+        }
+        Assert.True(found, "tier 6 constellations should contain moving blocks");
+    }
+
+    [Fact]
+    public void MovingBlock_DriftsAndBouncesOffTheSideWall()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks = new List<Block>
+        {
+            new() { X = 30, Y = 100, W = 54, H = 22, Kind = BlockKind.Standard, Hp = 1, Vx = -100 },
+            new() { X = 300, Y = 300, W = 54, H = 22, Kind = BlockKind.Standard, Hp = 1 },
+        };
+
+        for (var i = 0; i < 30; i++) e.Tick(1.0 / 60); // half a second, drifting left into the wall
+
+        Assert.True(e.Blocks[0].Vx > 0, "block should have bounced off the left wall and reversed");
+        Assert.True(e.Blocks[0].X >= 20);
+    }
+
+    [Fact]
     public void HazardReachingPaddleLine_EndsRun()
     {
         var e = NewEngine();

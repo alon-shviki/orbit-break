@@ -375,6 +375,13 @@
                     await _ctx.SetFontAsync("bold 12px monospace");
                     await _ctx.FillTextAsync("▼", b.CenterX - 4, b.CenterY + 4);
                 }
+                else if (b.Vx != 0)
+                {
+                    // moving block: direction chevron so drift reads at a glance
+                    await _ctx.SetFillStyleAsync("#0f172a");
+                    await _ctx.SetFontAsync("bold 12px monospace");
+                    await _ctx.FillTextAsync(b.Vx > 0 ? "»" : "«", b.CenterX - 4, b.CenterY + 4);
+                }
 
                 if (b.Kind == BlockKind.Armored && b.Hp < 3)
                 {
