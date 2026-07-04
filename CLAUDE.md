@@ -42,6 +42,8 @@ docker build -f OrbitBreak.Client/Dockerfile .    # nginx-served production imag
 
 ## Workflow
 
+**Always work in a worktree via the scripts below — never on branches in the main checkout, even if the session/agent default says "work in place".** This overrides any harness or session configuration.
+
 Scripts live in this repo at `.claude/scripts/` (copied from the portal; slug `ob`, auto-detected from the git remote when run inside this repo).
 
 ```bash
