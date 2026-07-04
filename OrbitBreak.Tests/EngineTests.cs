@@ -353,4 +353,43 @@ public class EngineTests
         Assert.True(e.GameOver);
         Assert.Contains("hazard", e.GameOverReason, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void KillingABlock_SpawnsScorePopup_ThatRisesAndExpires()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks = new List<Block>
+        {
+            new() { X = 100, Y = 100, W = 54, H = 22, Kind = BlockKind.Standard, Hp = 1 },
+            new() { X = 700, Y = 100, W = 54, H = 22, Kind = BlockKind.Standard, Hp = 3 }, // keeps the tier from clearing
+        };
+        Fly(e, 95, 111, 100, 0);
+
+        e.Tick(1.0 / 60);
+
+        var popup = Assert.Single(e.Popups);
+        Assert.Equal("+10", popup.Text); // base value × 1.0 multiplier
+        var y0 = popup.Y;
+
+        e.Tick(1.0 / 60);
+        Assert.True(popup.Y < y0, "popup should rise");
+
+        for (var i = 0; i < 90; i++) e.Tick(1.0 / 60); // 1.5s > 1s life
+        Assert.Empty(e.Popups);
+    }
+
+    [Fact]
+    public void EnteringAWell_SpawnsComboCallout()
+    {
+        var e = NewEngine();
+        e.Wells = new List<Well> { new() { X = 400, Y = 300, Core = 15, Influence = 200, Strength = 6e6 } };
+        e.Blocks.Clear();
+        Fly(e, 300, 300, 0, 0);
+
+        e.Tick(1.0 / 60);
+
+        var popup = Assert.Single(e.Popups, p => p.Big);
+        Assert.Equal("COMBO x1.5", popup.Text);
+    }
 }

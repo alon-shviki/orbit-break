@@ -437,6 +437,21 @@
             }
             await _ctx.SetGlobalAlphaAsync(1.0f);
 
+            // floating score popups & combo callouts — rise and fade at the point of action
+            if (_engine.Popups.Count > 0)
+            {
+                await _ctx.SetTextAlignAsync(TextAlign.Center);
+                foreach (var p in _engine.Popups)
+                {
+                    await _ctx.SetGlobalAlphaAsync((float)Math.Min(1, p.Life * 2.5));
+                    await _ctx.SetFontAsync(p.Big ? "bold 22px monospace" : "bold 14px monospace");
+                    await _ctx.SetFillStyleAsync(p.Color);
+                    await _ctx.FillTextAsync(p.Text, p.X, p.Y);
+                }
+                await _ctx.SetGlobalAlphaAsync(1.0f);
+                await _ctx.SetTextAlignAsync(TextAlign.Left);
+            }
+
             // HUD
             RefreshHudCaches();
             await _ctx.SetFontAsync("bold 16px monospace");
