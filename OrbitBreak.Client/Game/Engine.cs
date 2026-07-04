@@ -35,6 +35,16 @@ public class Particle
     public string Color = "#fff";
 }
 
+/// <summary>Floating feedback text at the point of action — "+150" on kills, combo callouts (issue #26).</summary>
+public class TextPopup
+{
+    public double X, Y;
+    public double Life = 1;   // seconds; rises and fades out
+    public string Text = "";
+    public string Color = "#fff";
+    public bool Big;          // combo callouts render larger
+}
+
 public enum PowerUpKind { WidePaddle, SlowBall, ExtraBall, Sticky, HeavyBall, SplitBall, PhaseBall }
 
 public class PowerUp
@@ -77,6 +87,7 @@ public class Engine
     public List<Well> Wells = new();
     public List<Block> Blocks = new();
     public List<Particle> Particles = new();
+    public List<TextPopup> Popups = new();
     public List<PowerUp> PowerUps = new();
 
     // active power-up effects
@@ -113,6 +124,7 @@ public class Engine
         GameOverReason = "";
         Shake = 0;
         Particles.Clear();
+        Popups.Clear();
         PowerUps.Clear();
         WidePaddleTime = SlowBallTime = 0;
         StickyCharges = 0;
@@ -160,6 +172,14 @@ public class Engine
             p.Life -= dt * 2;
             if (p.Life <= 0) { Particles.RemoveAt(i); continue; }
             p.X += p.Vx * dt; p.Y += p.Vy * dt;
+        }
+
+        for (var i = Popups.Count - 1; i >= 0; i--)
+        {
+            var p = Popups[i];
+            p.Life -= dt;
+            if (p.Life <= 0) { Popups.RemoveAt(i); continue; }
+            p.Y -= 40 * dt;
         }
 
         foreach (var b in Blocks)
@@ -219,7 +239,15 @@ public class Engine
                     var d = Math.Sqrt(d2);
                     if (d > w.Influence || d == 0) continue;
 
-                    if (_wellsThisFlight.Add(w)) Combo++;
+                    if (_wellsThisFlight.Add(w))
+                    {
+                        Combo++;
+                        Popups.Add(new TextPopup
+                        {
+                            X = w.X, Y = w.Y - w.Core - 14, Life = 1.2, Big = true,
+                            Text = $"COMBO x{Multiplier:0.#}", Color = "#f97316",
+                        });
+                    }
 
                     var a = w.Strength / Math.Max(d2, 900); // floor stops the pull exploding near the core
                     ball.Vx += a * dx / d * dt;
@@ -338,8 +366,10 @@ public class Engine
         if (!b.Alive) return;
         b.Alive = false;
         BlocksBroken++;
-        Score += (int)(b.Value * Multiplier);
+        var pts = (int)(b.Value * Multiplier);
+        Score += pts;
         Emit(b.CenterX, b.CenterY, ColorOf(b.Kind), 10);
+        Popups.Add(new TextPopup { X = b.CenterX, Y = b.CenterY, Text = $"+{pts}", Color = ColorOf(b.Kind) });
 
         if (_rng.NextDouble() < PowerUpChance)
             PowerUps.Add(new PowerUp

@@ -45,5 +45,5 @@ _None currently tracked here — check the GitHub issue list._
 
 ## Skipped for now
 
-- **Juice extras** — particles, trail, and screen shake are in; sound and bigger effects are a later pass.
+- **Juice extras** — particles, screen shake, and floating score popups/combo callouts (issue #26, `TextPopup` in Engine.cs) are in; the ball trail was removed and sound is a firm no (see [[Design/Breakout Research]] product decision).
 - **Negative pickups** (narrow paddle, fast ball) — deliberate future spice once positives are proven in play.
