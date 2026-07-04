@@ -8,7 +8,9 @@ Layout of the game code in `OrbitBreak.Client/` and where the tuning knobs live.
 |------|------|
 | `Game/Engine.cs` | Whole simulation: ball physics, gravity wells, block collision, combo/scoring, hazard advance, run-end conditions. Headless — no rendering or interop, so it's directly testable. |
 | `Game/Constellation.cs` | Procedural generator: wells (rejection-sampled, min separation) + block grid, seeded `Random`, difficulty scales with tier. |
-| `Pages/Game.razor` | UI states (menu / playing / game over / leaderboard), canvas rendering, aim input, paddle input, portal score submission. |
+| `Pages/Game.razor` | Game loop glue: canvas rendering, aim input, paddle input, portal score submission. Overlay markup (menu / game over / leaderboard) lives in `Components/`, kept here only as thin `@if` switches on `GameState`. |
+| `Components/MainMenuOverlay.razor`, `LeaderboardOverlay.razor`, `GameOverOverlay.razor` | Presentational components for the three non-playing screens — parameters in, `EventCallback`s out, no state of their own. Split out of `Game.razor` to keep its markup readable. |
+| `Pages/LeaderboardModels.cs` | `LeaderboardEntry`/`PersonalBestEntry` records shared between `Game.razor` and the overlay components. |
 | `wwwroot/js/gameInterop.js` | rAF loop → C# `Tick`, viewport size, pointer drag state, paddle key state (A/D, ←/→). |
 | `../OrbitBreak.Tests/EngineTests.cs` | Generator determinism, gravity pull, block break, paddle bounce, ball-miss → game over, hazard breach. |
 

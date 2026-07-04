@@ -10,116 +10,21 @@
 
     @if (_state == GameState.MainMenu)
     {
-        <div class="menu-overlay">
-            <div class="menu-logo">ORBIT BREAK</div>
-            @if (_loggedInUser != null)
-            {
-                <p class="menu-greeting">Welcome back, <span>@_loggedInUser</span>!</p>
-            }
-            else
-            {
-                <p class="menu-sub">Slingshot the ball around gravity wells. Chain wells for combo multipliers.</p>
-            }
-            <p class="menu-sub" style="font-size:0.85rem">Drag upward to aim, release to launch. Move the paddle with A/D or ←/→ to bounce the ball back.</p>
-            <div class="menu-buttons">
-                <button class="btn-normal" @onclick="StartGame">Start Game</button>
-                <button @onclick="ShowLeaderboard">Leaderboard</button>
-            </div>
-            @if (_loggedInUser != null)
-            {
-                <div class="signed-in-badge"><span class="signed-in-dot"></span>Signed in as <b>@_loggedInUser</b></div>
-            }
-            else
-            {
-                <p class="menu-sub" style="font-size:0.85rem;color:#64748b">Sign in at the portal to save scores</p>
-            }
-            @if (_highScore > 0)
-            {
-                <p class="menu-best">Best score: @_highScore.ToString("N0")</p>
-            }
-        </div>
+        <MainMenuOverlay LoggedInUser="@_loggedInUser" HighScore="@_highScore"
+                          OnStart="StartGame" OnLeaderboard="ShowLeaderboard" />
     }
 
     @if (_state == GameState.Leaderboard)
     {
-        <div class="overlay-panel">
-            <div class="panel-header">
-                <span class="panel-title">LEADERBOARD</span>
-                <button class="btn-back" @onclick='() => { _state = GameState.MainMenu; StateHasChanged(); }'>← Back</button>
-            </div>
-            <div style="padding: 24px; overflow-y: auto; flex: 1;">
-                @if (_leaderboardLoading)
-                {
-                    <p style="color:#64748b; font-family: monospace;">Loading...</p>
-                }
-                else if (_leaderboard == null)
-                {
-                    <p style="color:#ef4444; font-family: monospace;">Could not load leaderboard.</p>
-                }
-                else if (_leaderboard.Count == 0)
-                {
-                    <p style="color:#64748b; font-family: monospace;">No scores yet — be the first!</p>
-                }
-                else
-                {
-                    <table class="leaderboard-table">
-                        <thead>
-                            <tr><th>#</th><th>Player</th><th>Score</th><th>Blocks</th><th>Tier</th><th>Date</th></tr>
-                        </thead>
-                        <tbody>
-                            @for (var i = 0; i < _leaderboard.Count; i++)
-                            {
-                                var entry = _leaderboard[i];
-                                var rank = i + 1;
-                                var rankClass = rank == 1 ? "rank-gold" : rank == 2 ? "rank-silver" : rank == 3 ? "rank-bronze" : "";
-                                <tr class="@(entry.Username == _loggedInUser ? "row-self" : "")">
-                                    <td class="@rankClass">@rank</td>
-                                    <td>@entry.Username</td>
-                                    <td>@entry.Value.ToString("N0")</td>
-                                    <td>@entry.Kills</td>
-                                    <td>@entry.Level</td>
-                                    <td>@entry.PlayedAt.ToLocalTime().ToString("MMM d")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </div>
-        </div>
+        <LeaderboardOverlay Loading="@_leaderboardLoading" Entries="@_leaderboard" LoggedInUser="@_loggedInUser"
+                             OnBack="BackToMenu" />
     }
 
     @if (_state == GameState.GameOver)
     {
-        <div class="menu-overlay">
-            <h1 style="color:#ef4444">RUN OVER</h1>
-            <p style="color:#94a3b8">@_engine.GameOverReason &nbsp;|&nbsp; Tier @_engine.Tier &nbsp;|&nbsp; @_engine.BlocksBroken blocks</p>
-            <p style="color:#ffffff">Score: @_engine.Score.ToString("N0")</p>
-            <p style="color:#f59e0b">Best: @_highScore.ToString("N0")</p>
-            @if (_loggedInUser != null && _personalBest is { Count: > 0 })
-            {
-                <div class="personal-best">
-                    <div class="personal-best-title">YOUR BEST RUNS</div>
-                    <table class="personal-best-table">
-                        <tbody>
-                            @foreach (var run in _personalBest)
-                            {
-                                <tr>
-                                    <td>@run.Value.ToString("N0")</td>
-                                    <td>@run.Kills blocks</td>
-                                    <td>Tier @run.Level</td>
-                                    <td>@run.PlayedAt.ToLocalTime().ToString("MMM d")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            <div class="menu-buttons">
-                <button class="btn-normal" @onclick="StartGame">Play Again</button>
-                <button @onclick="ShowLeaderboard">Leaderboard</button>
-                <button @onclick='() => { _state = GameState.MainMenu; StateHasChanged(); }'>Main Menu</button>
-            </div>
-        </div>
+        <GameOverOverlay GameOverReason="@_engine.GameOverReason" Tier="@_engine.Tier" BlocksBroken="@_engine.BlocksBroken"
+                          Score="@_engine.Score" HighScore="@_highScore" LoggedInUser="@_loggedInUser" PersonalBest="@_personalBest"
+                          OnPlayAgain="StartGame" OnLeaderboard="ShowLeaderboard" OnMainMenu="BackToMenu" />
     }
 
     <BECanvas Width="@_canvasW" Height="@_canvasH" @ref="_canvasRef" />
@@ -138,10 +43,8 @@
     private string? _loggedInUser;
     private string _hudUserText = "";
 
-    private record LeaderboardEntry(string Username, int Value, int Kills, int Level, DateTime PlayedAt);
     private List<LeaderboardEntry>? _leaderboard;
     private bool _leaderboardLoading;
-    private record PersonalBestEntry(int Value, int Kills, int Level, DateTime PlayedAt);
     private List<PersonalBestEntry>? _personalBest;
 
     private readonly Engine _engine = new();
@@ -531,6 +434,12 @@
         _personalBest = null;
         _hudScoreCached = _hudComboCached = _hudTierCached = _hudLaunchesCached = _hudBallsCached = -1;
         _state = GameState.Playing;
+        StateHasChanged();
+    }
+
+    private void BackToMenu()
+    {
+        _state = GameState.MainMenu;
         StateHasChanged();
     }
 
