@@ -12,6 +12,16 @@ What the classics (Breakout, Arkanoid, Block Breaker) teach, and how it maps ont
 - **"A boring success is less fun than a glorious failure"** — the run should end in a flurry, not a stall. This drove the biggest #2 finding: runs were ending by *timeout stalemate* (ball trapped orbiting an inescapable well), not by dramatic misses. Fixed by making wells escapable.
 - **Timely ball return; no idle waiting.** Two changes: full clear now advances the tier *mid-flight* (no bouncing in an empty arena), and the 25s orbit-trap recall timer resets on every paddle touch so it only fires for genuinely trapped balls.
 
+## Fun audit — July 2026
+
+Player verdict: "game isn't really fun." Second research pass against Block Blast / Block Blaster–style games ([TechRadar on Block Breaker's pull](https://www.techradar.com/computing/dont-play-this-new-block-breaker-game-in-google-search-im-already-hopelessly-addicted-to-the-nostalgia), [Fieldston News on Block Blast addictiveness](https://fieldstonnews.com/home/2025/02/why-is-block-blast-so-addictive/)) plus a re-read of the Game Developer breakdown. What the addictive ones share that we lack:
+
+- **Sound.** We have literally zero audio. Every source calls out satisfying sound as the #1 reinforcement channel — paddle taps, block pops, combo swells. Biggest single fun gap → issue filed.
+- **Constant positive reinforcement.** Block Blast pops "Good! / Amazing!" and rainbow sparkles on every clear. We give particles only; score changes silently in a corner. Floating score popups + combo callouts → issue filed.
+- **Paddle feel.** The Game Developer piece: friction/momentum transfer from paddle to ball makes the paddle feel like a bat, not a wall — and gives the player something to do while waiting. We only steer by hit offset → issue filed.
+- **Pickups must read as rewards.** Our power-ups were flat squares with a letter — they read as UI debris, not loot. Redrawn as pulsing glowing orbs with shape icons (bar-with-arrows = wide, hourglass = slow, two balls = extra, fork = split, kettlebell = heavy, hollow ring = phase, ball-on-paddle = sticky).
+- **Ball trail removed** by player preference. (The Game Developer article suggests trails aid visibility at speed; if fast balls become hard to track, revisit with a subtler/shorter trail — not the 24-segment smear we had.)
+
 ## What stays unique (not Breakout)
 
 - Gravity wells that curve flight and reward chaining — combo = distinct wells entered per flight.

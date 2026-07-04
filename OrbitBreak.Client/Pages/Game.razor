@@ -222,16 +222,87 @@
         _                      => "#e879f9",
     };
 
-    private static string PowerUpLetter(PowerUpKind k) => k switch
+    // orb: soft pulsing glow + dark disk + colored ring, then a primitive-shape icon per kind
+    private async Task DrawPowerUp(PowerUp pu)
     {
-        PowerUpKind.WidePaddle => "W",
-        PowerUpKind.SlowBall   => "S",
-        PowerUpKind.ExtraBall  => "+1",
-        PowerUpKind.HeavyBall  => "H",
-        PowerUpKind.SplitBall  => "×2",
-        PowerUpKind.PhaseBall  => "P",
-        _                      => "C",
-    };
+        var (x, y, r) = (pu.X, pu.Y, Engine.PowerUpR);
+        var color = PowerUpColor(pu.Kind);
+        var pulse = 1 + 0.15 * Math.Sin(_lastTimestamp / 130.0 + x);
+
+        await _ctx.SetGlobalAlphaAsync(0.30f);
+        await _ctx.SetFillStyleAsync(color);
+        await _ctx.BeginPathAsync();
+        await _ctx.ArcAsync(x, y, (r + 5) * pulse, 0, Math.PI * 2);
+        await _ctx.FillAsync();
+        await _ctx.SetGlobalAlphaAsync(1.0f);
+
+        await _ctx.SetFillStyleAsync("#0f172a");
+        await _ctx.BeginPathAsync();
+        await _ctx.ArcAsync(x, y, r, 0, Math.PI * 2);
+        await _ctx.FillAsync();
+        await _ctx.SetStrokeStyleAsync(color);
+        await _ctx.SetLineWidthAsync(2);
+        await _ctx.BeginPathAsync();
+        await _ctx.ArcAsync(x, y, r, 0, Math.PI * 2);
+        await _ctx.StrokeAsync();
+
+        await _ctx.SetFillStyleAsync(color);
+        switch (pu.Kind)
+        {
+            case PowerUpKind.WidePaddle: // bar with outward arrowheads
+                await _ctx.FillRectAsync(x - 5, y - 2, 10, 4);
+                await _ctx.BeginPathAsync();
+                await _ctx.MoveToAsync(x - 8, y); await _ctx.LineToAsync(x - 4, y - 4); await _ctx.LineToAsync(x - 4, y + 4);
+                await _ctx.MoveToAsync(x + 8, y); await _ctx.LineToAsync(x + 4, y - 4); await _ctx.LineToAsync(x + 4, y + 4);
+                await _ctx.FillAsync();
+                break;
+            case PowerUpKind.SlowBall: // hourglass
+                await _ctx.BeginPathAsync();
+                await _ctx.MoveToAsync(x - 5, y - 6); await _ctx.LineToAsync(x + 5, y - 6);
+                await _ctx.LineToAsync(x - 5, y + 6); await _ctx.LineToAsync(x + 5, y + 6);
+                await _ctx.FillAsync();
+                break;
+            case PowerUpKind.ExtraBall: // two balls
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(x - 3.5, y, 3.5, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(x + 3.5, y, 3.5, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                break;
+            case PowerUpKind.Sticky: // ball resting on a paddle
+                await _ctx.FillRectAsync(x - 6, y + 2, 12, 3);
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(x, y - 2, 3.5, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                break;
+            case PowerUpKind.HeavyBall: // kettlebell
+                await _ctx.FillRectAsync(x - 2.5, y - 7, 5, 4);
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(x, y + 1.5, 5.5, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                break;
+            case PowerUpKind.SplitBall: // one ball forking into two
+                await _ctx.SetLineWidthAsync(2);
+                await _ctx.BeginPathAsync();
+                await _ctx.MoveToAsync(x, y + 6); await _ctx.LineToAsync(x - 4.5, y - 2);
+                await _ctx.MoveToAsync(x, y + 6); await _ctx.LineToAsync(x + 4.5, y - 2);
+                await _ctx.StrokeAsync();
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(x - 4.5, y - 4, 2.5, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(x + 4.5, y - 4, 2.5, 0, Math.PI * 2);
+                await _ctx.FillAsync();
+                break;
+            case PowerUpKind.PhaseBall: // hollow ghost ring
+                await _ctx.SetLineWidthAsync(2.5f);
+                await _ctx.BeginPathAsync();
+                await _ctx.ArcAsync(x, y, 4.5, 0, Math.PI * 2);
+                await _ctx.StrokeAsync();
+                break;
+        }
+    }
 
     private async Task Render()
     {
@@ -303,30 +374,9 @@
                 }
             }
 
-            // ball trail
-            var ti = 0;
-            foreach (var (tx, ty) in _engine.Trail)
-            {
-                await _ctx.SetGlobalAlphaAsync(0.35f * ti / Math.Max(1, _engine.Trail.Count));
-                await _ctx.SetFillStyleAsync("#e0f2fe");
-                await _ctx.BeginPathAsync();
-                await _ctx.ArcAsync(tx, ty, Engine.BallR * 0.6, 0, Math.PI * 2);
-                await _ctx.FillAsync();
-                ti++;
-            }
-            await _ctx.SetGlobalAlphaAsync(1.0f);
-
-            // falling power-ups: colored square + letter, catch with the paddle
+            // falling power-ups: pulsing glowing orb with a shape icon per kind, catch with the paddle
             foreach (var pu in _engine.PowerUps)
-            {
-                await _ctx.SetFillStyleAsync(PowerUpColor(pu.Kind));
-                await _ctx.FillRectAsync(pu.X - Engine.PowerUpR, pu.Y - Engine.PowerUpR, Engine.PowerUpR * 2, Engine.PowerUpR * 2);
-                await _ctx.SetFillStyleAsync("#0f172a");
-                await _ctx.SetFontAsync("bold 12px monospace");
-                await _ctx.SetTextAlignAsync(TextAlign.Center);
-                await _ctx.FillTextAsync(PowerUpLetter(pu.Kind), pu.X, pu.Y + 4);
-                await _ctx.SetTextAlignAsync(TextAlign.Left);
-            }
+                await DrawPowerUp(pu);
 
             // paddle (turns green while widened)
             await _ctx.SetFillStyleAsync(_engine.WidePaddleTime > 0 ? "#22c55e" : "#1fd6c4");
