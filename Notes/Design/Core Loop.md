@@ -30,6 +30,16 @@ No lives in the traditional sense: the run ends when the ball gets past the padd
 
 Matches Bullet Heaven's scale: physics/orbit engine comparable to BH's quadtree + projectile system; block/ball variety comparable to BH's enemy roster + upgrade catalogue; juice/combo UI is direct pattern reuse from BH.
 
+## Game Modes (issue #33)
+
+Picked at the main menu; `GameMode` on the engine, `Reset(seed, mode)`.
+
+- **Normal** — the game as designed: 3 balls, hazards end the run, feeds the portal leaderboard and local high score.
+- **Zen** — nothing can end the run: lost balls cost no life, hazards park at the paddle line instead of breaching. Endless relaxed play; exit with Esc (Esc quits to menu in every mode).
+- **Time Attack** — 60-second clock (`TimeAttackSeconds`), lost balls are free, run ends only when time's up; HUD swaps lives for blocks-cleared + a big countdown. Scoreboard framing: blocks cleared.
+
+Score submission + high score stay **Normal-only** so the single portal leaderboard keeps one meaning — revisit if the portal ever grows per-mode boards.
+
 ## Open Questions
 
 - ~~Exact gravity-well falloff curve and tuning~~ — answered by simulation (issue #2): inverse-square kept, `Strength` lowered so escape speed from a core (~700 px/s) sits below typical ball speed — wells must deflect, never permanently capture. Method and numbers in [[Tech/Tuning]].

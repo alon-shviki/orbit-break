@@ -392,4 +392,68 @@ public class EngineTests
         var popup = Assert.Single(e.Popups, p => p.Big);
         Assert.Equal("COMBO x1.5", popup.Text);
     }
+
+    [Fact]
+    public void ZenMode_LostBall_CostsNothing_AndNeverEndsTheRun()
+    {
+        var e = new Engine { Width = 800, Height = 600 };
+        e.Reset(1, GameMode.Zen);
+        e.Wells.Clear();
+        Fly(e, 400, e.PaddleY + 30, 0, 400); // already past the paddle, heading out
+
+        e.Tick(1.0 / 60);
+
+        Assert.False(e.GameOver);
+        Assert.Equal(Engine.StartingBalls, e.Balls); // no life lost
+        Assert.Equal(1, e.Launches);                 // flight still ended and counted
+    }
+
+    [Fact]
+    public void ZenMode_HazardAtPaddleLine_ParksInsteadOfEndingRun()
+    {
+        var e = new Engine { Width = 800, Height = 600 };
+        e.Reset(1, GameMode.Zen);
+        e.Wells.Clear();
+        e.Blocks = new List<Block>
+        {
+            new() { X = 300, Y = e.PaddleY - 40, W = 54, H = 22, Kind = BlockKind.Hazard, Hp = 1 },
+        };
+        Fly(e, 400, 300, 0, 50);
+        e.FlightTime = Engine.MaxFlightSeconds + 1; // recall ends the flight, advancing hazards
+
+        e.Tick(1.0 / 60);
+
+        Assert.False(e.GameOver);
+        Assert.True(e.Blocks[0].Y + e.Blocks[0].H < e.PaddleY - 12 + 1, "hazard should park at the line");
+    }
+
+    [Fact]
+    public void TimeAttack_EndsWhenTheClockRunsOut_NotWhenBallsAreLost()
+    {
+        var e = new Engine { Width = 800, Height = 600 };
+        e.Reset(1, GameMode.TimeAttack);
+        e.Wells.Clear();
+        Fly(e, 400, e.PaddleY + 30, 0, 400);
+
+        e.Tick(1.0 / 60);
+        Assert.False(e.GameOver); // lost ball is free in time attack
+
+        e.TimeLeft = 0.001;
+        e.Tick(1.0 / 60);
+
+        Assert.True(e.GameOver);
+        Assert.Contains("time", e.GameOverReason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, e.TimeLeft);
+    }
+
+    [Fact]
+    public void NormalMode_IsTheDefault_AndTimerDoesNotTick()
+    {
+        var e = NewEngine();
+        Assert.Equal(GameMode.Normal, e.Mode);
+
+        var before = e.TimeLeft;
+        e.Tick(1.0 / 60);
+        Assert.Equal(before, e.TimeLeft);
+    }
 }

@@ -10,9 +10,12 @@
     }
     <p class="menu-sub" style="font-size:0.85rem">Drag upward to aim, release to launch. Move the paddle with A/D or ←/→ to bounce the ball back.</p>
     <div class="menu-buttons">
-        <button class="btn-normal" @onclick="OnStart">Start Game</button>
+        <button class="btn-normal" @onclick="() => OnStart.InvokeAsync(GameMode.Normal)">Start Game</button>
+        <button @onclick="() => OnStart.InvokeAsync(GameMode.Zen)">Zen Mode</button>
+        <button @onclick="() => OnStart.InvokeAsync(GameMode.TimeAttack)">Time Attack</button>
         <button @onclick="OnLeaderboard">Leaderboard</button>
     </div>
+    <p class="menu-sub" style="font-size:0.8rem;color:#64748b">Zen: endless, nothing ends the run · Time Attack: 60s block sprint · Esc quits to menu</p>
     @if (LoggedInUser != null)
     {
         <div class="signed-in-badge"><span class="signed-in-dot"></span>Signed in as <b>@LoggedInUser</b></div>
@@ -30,6 +33,6 @@
 @code {
     [Parameter] public string? LoggedInUser { get; set; }
     [Parameter] public int HighScore { get; set; }
-    [Parameter] public EventCallback OnStart { get; set; }
+    [Parameter] public EventCallback<GameMode> OnStart { get; set; }
     [Parameter] public EventCallback OnLeaderboard { get; set; }
 }

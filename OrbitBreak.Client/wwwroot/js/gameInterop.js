@@ -43,12 +43,15 @@ window.gameInterop = {
             g._rx = e.clientX;
             g._ry = e.clientY;
         });
-        window.addEventListener('keydown', e => { g._keys[e.code] = true; });
+        window.addEventListener('keydown', e => {
+            g._keys[e.code] = true;
+            if (e.code === 'Escape') g._esc = true; // edge-latched: quit-to-menu (issue #33)
+        });
         window.addEventListener('keyup', e => { g._keys[e.code] = false; });
     },
 
     // One interop round-trip per frame instead of two (issue #10).
-    // [axis, down, x, y, startX, startY, releasedEdge, releaseX, releaseY]
+    // [axis, down, x, y, startX, startY, releasedEdge, releaseX, releaseY, escEdge]
     // axis: -1 (left), 0, or 1 (right) — A/D or arrow keys move the paddle
     getInputState() {
         const g = window.gameInterop;
@@ -58,6 +61,8 @@ window.gameInterop = {
         if (k['KeyD'] || k['ArrowRight']) ax += 1;
         const released = g._released ? 1 : 0;
         g._released = false;
-        return [ax, g._down ? 1 : 0, g._x, g._y, g._sx, g._sy, released, g._rx, g._ry];
+        const esc = g._esc ? 1 : 0;
+        g._esc = false;
+        return [ax, g._down ? 1 : 0, g._x, g._y, g._sx, g._sy, released, g._rx, g._ry, esc];
     }
 };

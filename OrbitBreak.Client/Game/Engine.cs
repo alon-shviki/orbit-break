@@ -61,6 +61,9 @@ public class Ball
 /// <summary>Flight-scoped ball mode from a variant pickup (issue #3); cleared when the flight ends.</summary>
 public enum BallVariant { None, Heavy, Phase }
 
+/// <summary>Selected at the menu (issue #33). Zen: nothing can end the run. TimeAttack: only the 60s clock ends it.</summary>
+public enum GameMode { Normal, Zen, TimeAttack }
+
 /// <summary>Whole simulation: ball, wells, blocks, combo, difficulty. No rendering, no interop — testable head-less.</summary>
 public class Engine
 {
@@ -79,6 +82,7 @@ public class Engine
     public const double PowerUpFallSpeed = 130; // px/s straight down — must be caught with the paddle
     public const double PowerUpDuration = 10;   // seconds for the timed effects (wide, slow)
     public const double PowerUpR = 11;          // pickup half-size for catch/draw
+    public const double TimeAttackSeconds = 60; // run length in TimeAttack mode
 
     public double Width, Height;
     public double PaddleX;
@@ -103,6 +107,8 @@ public class Engine
     public const int MaxFlightBalls = 6;
 
     public int Score, BlocksBroken, Combo, Tier, Balls, Launches;
+    public GameMode Mode;
+    public double TimeLeft;   // TimeAttack countdown, seconds
     public bool GameOver;
     public string GameOverReason = "";
     public double Shake;
@@ -114,9 +120,11 @@ public class Engine
     // deflection" from the design doc — refine to actual deflection detection after feel-testing
     public double Multiplier => 1 + 0.5 * Combo;
 
-    public void Reset(int seed)
+    public void Reset(int seed, GameMode mode = GameMode.Normal)
     {
         _rng = new Random(seed); // seeded per run — enables a future daily-seed mode
+        Mode = mode;
+        TimeLeft = TimeAttackSeconds;
         Score = BlocksBroken = Combo = Launches = 0;
         Tier = 1;
         Balls = StartingBalls;
@@ -197,6 +205,18 @@ public class Engine
         }
 
         if (GameOver) return;
+
+        if (Mode == GameMode.TimeAttack)
+        {
+            TimeLeft -= dt;
+            if (TimeLeft <= 0)
+            {
+                TimeLeft = 0;
+                GameOver = true;
+                GameOverReason = "Time's up";
+                return;
+            }
+        }
 
         PaddleX = Math.Clamp(PaddleX + paddleAxis * PaddleSpeed * dt, PaddleHalfWidthNow, Width - PaddleHalfWidthNow);
 
@@ -416,7 +436,8 @@ public class Engine
         Combo = 0;
         _wellsThisFlight.Clear();
 
-        if (!caught)
+        // only Normal has lives — Zen is unloseable, TimeAttack only answers to the clock
+        if (!caught && Mode == GameMode.Normal)
         {
             Balls--;
             if (Balls <= 0)
@@ -442,8 +463,15 @@ public class Engine
             b.Y += HazardStep;
             if (b.Y + b.H >= PaddleY - 12)
             {
-                GameOver = true;
-                GameOverReason = "Hazard breached the paddle line";
+                if (Mode == GameMode.Normal)
+                {
+                    GameOver = true;
+                    GameOverReason = "Hazard breached the paddle line";
+                }
+                else
+                {
+                    b.Y = PaddleY - 12 - b.H; // Zen/TimeAttack: hazards park at the line as obstacles
+                }
             }
         }
     }

@@ -24,7 +24,7 @@
     {
         <GameOverOverlay GameOverReason="@_engine.GameOverReason" Tier="@_engine.Tier" BlocksBroken="@_engine.BlocksBroken"
                           Score="@_engine.Score" HighScore="@_highScore" LoggedInUser="@_loggedInUser" PersonalBest="@_personalBest"
-                          OnPlayAgain="StartGame" OnLeaderboard="ShowLeaderboard" OnMainMenu="BackToMenu" />
+                          OnPlayAgain="() => StartGame(_mode)" OnLeaderboard="ShowLeaderboard" OnMainMenu="BackToMenu" />
     }
 
     <BECanvas Width="@_canvasW" Height="@_canvasH" @ref="_canvasRef" />
@@ -48,6 +48,7 @@
     private List<PersonalBestEntry>? _personalBest;
 
     private readonly Engine _engine = new();
+    private GameMode _mode = GameMode.Normal;
     private int _canvasW = 800;
     private int _canvasH = 600;
     private bool _contextCreated;
@@ -71,6 +72,8 @@
     private int _hudBallsCached = -1;
     private string _hudEffectsText = "";
     private (int, int, int, int, int) _hudEffectsCached = (-1, -1, -1, -1, -1);
+    private string _hudTimeText = "";
+    private int _hudTimeCached = -1;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -119,14 +122,15 @@
 
             if (_engine.GameOver)
             {
-                if (_engine.Score > _highScore)
+                // high score + portal leaderboard are Normal-only, so the one board keeps one meaning
+                if (_mode == GameMode.Normal && _engine.Score > _highScore)
                 {
                     _highScore = _engine.Score;
                     await JS.InvokeVoidAsync("localStorage.setItem", "ob_highscore", _highScore.ToString());
                 }
                 _state = GameState.GameOver;
                 StateHasChanged();
-                if (_jwtToken != null)
+                if (_jwtToken != null && _mode == GameMode.Normal)
                 {
                     await SubmitScoreAsync();
                     await FetchPersonalBestAsync();
@@ -140,8 +144,9 @@
 
     private async Task<double> PollInputAsync()
     {
-        // [axis, down, x, y, startX, startY, releasedEdge, releaseX, releaseY] — one round-trip (issue #10)
+        // [axis, down, x, y, startX, startY, releasedEdge, releaseX, releaseY, escEdge] — one round-trip (issue #10)
         var p = await JS.InvokeAsync<double[]>("gameInterop.getInputState");
+        if (p.Length > 9 && p[9] != 0) { BackToMenu(); return 0; } // Esc quits the run — Zen's only exit
         var axis = p[0];
         _aiming = false;
         if (_engine.InFlight) return axis;
@@ -189,10 +194,26 @@
             _hudLaunchesCached = untilShift;
             _hudTierText = $"Tier {_engine.Tier}  shift in {untilShift}";
         }
-        if (_engine.Balls != _hudBallsCached)
+        // in TimeAttack the line shows blocks cleared (lives don't exist), so key the cache on that
+        var ballsKey = _engine.Mode == GameMode.TimeAttack ? _engine.BlocksBroken : _engine.Balls;
+        if (ballsKey != _hudBallsCached)
         {
-            _hudBallsCached = _engine.Balls;
-            _hudBallsText = "Balls: " + new string('●', Math.Max(0, _engine.Balls));
+            _hudBallsCached = ballsKey;
+            _hudBallsText = _engine.Mode switch
+            {
+                GameMode.Zen        => "ZEN",
+                GameMode.TimeAttack => $"{_engine.BlocksBroken} blocks",
+                _                   => "Balls: " + new string('●', Math.Max(0, _engine.Balls)),
+            };
+        }
+        if (_engine.Mode == GameMode.TimeAttack)
+        {
+            var secs = (int)Math.Ceiling(_engine.TimeLeft);
+            if (secs != _hudTimeCached)
+            {
+                _hudTimeCached = secs;
+                _hudTimeText = $"{secs / 60}:{secs % 60:00}";
+            }
         }
         var effectsKey = ((int)Math.Ceiling(_engine.WidePaddleTime), (int)Math.Ceiling(_engine.SlowBallTime),
             _engine.StickyCharges, (int)_engine.Variant, _engine.PendingSplit ? 1 : 0);
@@ -473,6 +494,16 @@
                 await _ctx.FillTextAsync(_hudEffectsText, 10, _engine.Combo > 0 ? 118 : 96);
             }
 
+            // time attack countdown — big, top center, red for the last 10 seconds
+            if (_engine.Mode == GameMode.TimeAttack)
+            {
+                await _ctx.SetTextAlignAsync(TextAlign.Center);
+                await _ctx.SetFontAsync("bold 28px monospace");
+                await _ctx.SetFillStyleAsync(_engine.TimeLeft <= 10 ? "#ef4444" : "#ffffff");
+                await _ctx.FillTextAsync(_hudTimeText, _canvasW / 2.0, 36);
+                await _ctx.SetTextAlignAsync(TextAlign.Left);
+            }
+
             await _ctx.SetTextAlignAsync(TextAlign.Right);
             if (_loggedInUser != null)
             {
@@ -493,9 +524,10 @@
         await _ctx.EndBatchAsync();
     }
 
-    private void StartGame()
+    private void StartGame(GameMode mode)
     {
-        _engine.Reset(Random.Shared.Next());
+        _mode = mode;
+        _engine.Reset(Random.Shared.Next(), mode);
         _personalBest = null;
         _hudScoreCached = _hudComboCached = _hudTierCached = _hudLaunchesCached = _hudBallsCached = -1;
         _state = GameState.Playing;
