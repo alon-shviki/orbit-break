@@ -67,10 +67,9 @@ Spot a bug outside the current task → open a GitHub issue immediately, continu
 
 Never commit directly to `main`.
 
-## Not Done Yet
+## Setup status
 
-The Blazor WASM client, engine tests, Dockerfile/nginx.conf, and CI workflow exist. Still pending (see portal's `.claude/rules/adding-a-game.md`):
-- Create the GitHub repo, push, make it public
-- Add `orbit-break` to `REPOS`/`ROOTS` in the portal's `start-issue`/`start-task` scripts
-- Set up issue labels, issue templates, branch protection
-- Wire the game into the portal's `docker-compose.yml` (portal repo change)
+Fully set up (see portal's `.claude/rules/adding-a-game.md`): public GitHub repo, portal scripts + `docker-compose.yml` wired, issue labels/templates, and a `main` ruleset (PR required, `build` status check, no force-push/deletion — matches portal & Bullet Heaven).
+
+## Product decisions
+- **No sound effects** — owner's call (July 2026). Don't re-propose audio.
