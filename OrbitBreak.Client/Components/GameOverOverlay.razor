@@ -1,0 +1,43 @@
+<div class="menu-overlay">
+    <h1 style="color:#ef4444">RUN OVER</h1>
+    <p style="color:#94a3b8">@GameOverReason &nbsp;|&nbsp; Tier @Tier &nbsp;|&nbsp; @BlocksBroken blocks</p>
+    <p style="color:#ffffff">Score: @Score.ToString("N0")</p>
+    <p style="color:#f59e0b">Best: @HighScore.ToString("N0")</p>
+    @if (LoggedInUser != null && PersonalBest is { Count: > 0 })
+    {
+        <div class="personal-best">
+            <div class="personal-best-title">YOUR BEST RUNS</div>
+            <table class="personal-best-table">
+                <tbody>
+                    @foreach (var run in PersonalBest)
+                    {
+                        <tr>
+                            <td>@run.Value.ToString("N0")</td>
+                            <td>@run.Kills blocks</td>
+                            <td>Tier @run.Level</td>
+                            <td>@run.PlayedAt.ToLocalTime().ToString("MMM d")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <div class="menu-buttons">
+        <button class="btn-normal" @onclick="OnPlayAgain">Play Again</button>
+        <button @onclick="OnLeaderboard">Leaderboard</button>
+        <button @onclick="OnMainMenu">Main Menu</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string GameOverReason { get; set; } = "";
+    [Parameter] public int Tier { get; set; }
+    [Parameter] public int BlocksBroken { get; set; }
+    [Parameter] public int Score { get; set; }
+    [Parameter] public int HighScore { get; set; }
+    [Parameter] public string? LoggedInUser { get; set; }
+    [Parameter] public List<PersonalBestEntry>? PersonalBest { get; set; }
+    [Parameter] public EventCallback OnPlayAgain { get; set; }
+    [Parameter] public EventCallback OnLeaderboard { get; set; }
+    [Parameter] public EventCallback OnMainMenu { get; set; }
+}

@@ -1,0 +1,35 @@
+<div class="menu-overlay">
+    <div class="menu-logo">ORBIT BREAK</div>
+    @if (LoggedInUser != null)
+    {
+        <p class="menu-greeting">Welcome back, <span>@LoggedInUser</span>!</p>
+    }
+    else
+    {
+        <p class="menu-sub">Slingshot the ball around gravity wells. Chain wells for combo multipliers.</p>
+    }
+    <p class="menu-sub" style="font-size:0.85rem">Drag upward to aim, release to launch. Move the paddle with A/D or ←/→ to bounce the ball back.</p>
+    <div class="menu-buttons">
+        <button class="btn-normal" @onclick="OnStart">Start Game</button>
+        <button @onclick="OnLeaderboard">Leaderboard</button>
+    </div>
+    @if (LoggedInUser != null)
+    {
+        <div class="signed-in-badge"><span class="signed-in-dot"></span>Signed in as <b>@LoggedInUser</b></div>
+    }
+    else
+    {
+        <p class="menu-sub" style="font-size:0.85rem;color:#64748b">Sign in at the portal to save scores</p>
+    }
+    @if (HighScore > 0)
+    {
+        <p class="menu-best">Best score: @HighScore.ToString("N0")</p>
+    }
+</div>
+
+@code {
+    [Parameter] public string? LoggedInUser { get; set; }
+    [Parameter] public int HighScore { get; set; }
+    [Parameter] public EventCallback OnStart { get; set; }
+    [Parameter] public EventCallback OnLeaderboard { get; set; }
+}
