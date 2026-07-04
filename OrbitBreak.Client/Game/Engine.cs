@@ -78,7 +78,6 @@ public class Engine
     public List<Block> Blocks = new();
     public List<Particle> Particles = new();
     public List<PowerUp> PowerUps = new();
-    public Queue<(double X, double Y)> Trail = new();
 
     // active power-up effects
     public double WidePaddleTime, SlowBallTime;
@@ -117,7 +116,6 @@ public class Engine
         PowerUps.Clear();
         WidePaddleTime = SlowBallTime = 0;
         StickyCharges = 0;
-        Trail.Clear();
         _wellsThisFlight.Clear();
         FlightBalls.Clear();
         Variant = BallVariant.None;
@@ -135,7 +133,6 @@ public class Engine
         FlightBalls.Add(new Ball { X = PaddleX, Y = PaddleY, Vx = vx, Vy = vy });
         if (PendingSplit) { PendingSplit = false; SplitAll(); }
         _wellsThisFlight.Clear();
-        Trail.Clear();
     }
 
     /// <summary>Every flight ball forks into two (±20° spread), capped at MaxFlightBalls.</summary>
@@ -249,12 +246,6 @@ public class Engine
             var prevX = ball.X; var prevY = ball.Y;
             ball.X += ball.Vx * dt;
             ball.Y += ball.Vy * dt;
-
-            if (bi == 0)
-            {
-                Trail.Enqueue((ball.X, ball.Y));
-                if (Trail.Count > 24) Trail.Dequeue();
-            }
 
             // walls bounce (left/right/top)
             if (ball.X < BallR)         { ball.X = BallR;         ball.Vx = Math.Abs(ball.Vx) * 0.98; }
@@ -394,7 +385,6 @@ public class Engine
         Variant = BallVariant.None;
         Combo = 0;
         _wellsThisFlight.Clear();
-        Trail.Clear();
 
         if (!caught)
         {
