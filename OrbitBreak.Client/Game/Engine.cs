@@ -72,6 +72,7 @@ public class Engine
     public const double PaddleHalfWidth = 70;   // half-width of the controllable paddle (sim-tuned, issue #2)
     public const double PaddleHeight = 12;
     public const double PaddleSpeed = 760;      // px/s, A/D or ←/→ (sim-tuned, issue #2)
+    public const double PaddleFling = 0.25;     // fraction of paddle velocity flung into the ball on bounce (sim-tuned, issue #27)
     public const int    LaunchesPerTier = 5;    // constellation regenerates one tier harder every N launches
     public const int    StartingBalls = 3;
     public const double MaxFlightSeconds = 25;  // trapped-orbit recall, counts as a catch
@@ -324,8 +325,15 @@ public class Engine
                     }
                     var offset = Math.Clamp((xAtCross - PaddleX) / PaddleHalfWidthNow, -1, 1);
                     var speed = Math.Sqrt(ball.Vx * ball.Vx + ball.Vy * ball.Vy);
-                    ball.Vx = offset * speed;
-                    ball.Vy = -Math.Sqrt(Math.Max(speed * speed - ball.Vx * ball.Vx, speed * speed * 0.25));
+                    // paddle momentum: a moving paddle flings the ball sideways, so it feels like a bat,
+                    // not a wall, and gives skilled players a steering tool on top of hit-offset (issue #27)
+                    var vx = offset * speed + paddleAxis * PaddleSpeed * PaddleFling;
+                    // keep a minimum upward component so a hard fling can't flatten the bounce
+                    var vy = -Math.Sqrt(Math.Max(speed * speed - vx * vx, speed * speed * 0.25));
+                    // re-normalize to the pre-bounce speed — already within the cap, and the fling only steers
+                    var mag = Math.Sqrt(vx * vx + vy * vy);
+                    ball.Vx = vx / mag * speed;
+                    ball.Vy = vy / mag * speed;
                     ball.X = xAtCross;
                     ball.Y = paddleTop - BallR - 0.5;
                     FlightTime = 0; // paddle contact proves the flight isn't orbit-trapped — recall timer restarts

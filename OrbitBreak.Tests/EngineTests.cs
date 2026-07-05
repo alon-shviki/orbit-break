@@ -104,6 +104,23 @@ public class EngineTests
     }
 
     [Fact]
+    public void MovingPaddle_FlingsBallSideways_WithoutChangingSpeed()
+    {
+        var e = NewEngine();
+        e.Wells.Clear();
+        e.Blocks.Clear();
+        e.PaddleX = 400;
+        var ball = Fly(e, 400, e.PaddleY - 1, 0, 200); // dead-center hit: offset gives no sideways push
+
+        e.Tick(1.0 / 60, paddleAxis: 1); // paddle moving right
+
+        Assert.True(ball.Vy < 0, "ball should be moving upward after the bounce");
+        Assert.True(ball.Vx > 0, "a right-moving paddle should fling the ball to the right");
+        var speed = Math.Sqrt(ball.Vx * ball.Vx + ball.Vy * ball.Vy);
+        Assert.Equal(200, speed, 1); // fling steers the angle but preserves speed
+    }
+
+    [Fact]
     public void FastBall_StillBouncesOffPaddle_InsteadOfTunneling()
     {
         var e = NewEngine();
