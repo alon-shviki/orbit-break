@@ -17,6 +17,10 @@ How the issue #2 "playtest & tune" pass was actually done, and why each knob lan
 
 `MaxBallSpeed` stays 1200 and launch power stays player-chosen (380–1000): because well pull is conservative, the ball returns at ≈ launch speed, so launch power *is* the difficulty dial the player controls (see [[Design/Breakout Research]]).
 
+## Paddle momentum (issue #27)
+
+The paddle now flings the ball: on bounce, `paddleAxis * PaddleSpeed * PaddleFling` is added to the ball's `Vx`, then the velocity is re-normalized back to the pre-bounce speed. So a moving paddle *steers* the bounce (like a bat) on top of hit-offset, without changing ball speed — it stays within the cap for free. `PaddleFling = 0.25` (mid of the fun-audit's 0.2–0.3 range): at `PaddleSpeed` 760 that's a 190 px/s sideways nudge, meaningful next to a ~500–700 px/s ball but not enough to flatten the bounce (a minimum upward component is preserved before re-normalizing). Left at the range midpoint rather than sim-swept — the fling is a skill *affordance*, not a survival knob, so the bots (paddle tracks x, never strafes for angle) don't exercise it; tune by feel if it reads too weak/strong.
+
 ## Result (median over 40 runs)
 
 | Bot | Baseline score | Tuned score | Tuned run length |
