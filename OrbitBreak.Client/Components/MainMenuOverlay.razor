@@ -8,14 +8,28 @@
     {
         <p class="menu-sub">Slingshot the ball around gravity wells. Chain wells for combo multipliers.</p>
     }
-    <p class="menu-sub" style="font-size:0.85rem">Drag upward to aim, release to launch. Move the paddle with A/D or ←/→ to bounce the ball back.</p>
+    <span class="menu-tip-wrap">
+        <span class="menu-hint-chip">ⓘ How to play</span>
+        <span class="menu-tip">Drag upward from the paddle to aim, release to launch the ball. Move the paddle with <b>A/D</b> or <b>←/→</b> to bounce it back. Chain gravity wells for combo multipliers. <b>Esc</b> quits a run.</span>
+    </span>
     <div class="menu-buttons">
-        <button class="btn-normal" @onclick="() => OnStart.InvokeAsync(GameMode.Normal)">Start Game</button>
-        <button @onclick="() => OnStart.InvokeAsync(GameMode.Zen)">Zen Mode</button>
-        <button @onclick="() => OnStart.InvokeAsync(GameMode.TimeAttack)">Time Attack</button>
-        <button @onclick="OnLeaderboard">Leaderboard</button>
+        <span class="menu-tip-wrap">
+            <button class="btn-normal" @onclick="() => OnStart.InvokeAsync(GameMode.Normal)">Start Game</button>
+            <span class="menu-tip"><b>Normal</b> — three balls, clear the blocks before you run out.</span>
+        </span>
+        <span class="menu-tip-wrap">
+            <button @onclick="() => OnStart.InvokeAsync(GameMode.Zen)">Zen Mode</button>
+            <span class="menu-tip"><b>Zen</b> — endless. Nothing ends the run; relax and chain combos.</span>
+        </span>
+        <span class="menu-tip-wrap">
+            <button @onclick="() => OnStart.InvokeAsync(GameMode.TimeAttack)">Time Attack</button>
+            <span class="menu-tip"><b>Time Attack</b> — 60-second sprint. Break as many blocks as you can.</span>
+        </span>
+        <span class="menu-tip-wrap">
+            <button @onclick="OnLeaderboard">Leaderboard</button>
+            <span class="menu-tip">Top scores across every player.</span>
+        </span>
     </div>
-    <p class="menu-sub" style="font-size:0.8rem;color:#64748b">Zen: endless, nothing ends the run · Time Attack: 60s block sprint · Esc quits to menu</p>
     @if (LoggedInUser != null)
     {
         <div class="signed-in-badge"><span class="signed-in-dot"></span>Signed in as <b>@LoggedInUser</b></div>

@@ -42,6 +42,47 @@ canvas { display: block; touch-action: none; }
 .menu-buttons button:hover, .btn-back:hover { background: #312e81; }
 .btn-normal { border-color: #7c3aed !important; }
 
+/* Hover tooltips — controls + per-mode blurbs pop up instead of cluttering the menu */
+.menu-tip-wrap { position: relative; display: inline-flex; }
+
+.menu-hint-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 16px;
+    font-size: 0.85rem; color: #a78bfa;
+    border: 1px dashed #4c1d95; border-radius: 999px;
+    cursor: help;
+}
+.menu-hint-chip:hover { background: rgba(124, 58, 250, 0.12); }
+
+.menu-tip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 230px;
+    padding: 10px 14px;
+    background: #0b0e20;
+    border: 1px solid #4c1d95;
+    border-radius: 8px;
+    color: #cbd5e1;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 0.8rem; font-weight: 400; line-height: 1.45;
+    text-align: center;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.12s ease;
+    z-index: 20; pointer-events: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+.menu-tip b { color: #1fd6c4; }
+.menu-tip::after {
+    content: "";
+    position: absolute; top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #4c1d95;
+}
+.menu-tip-wrap:hover .menu-tip { opacity: 1; visibility: visible; }
+
 .overlay-panel {
     position: absolute; inset: 0; z-index: 10;
     display: flex; flex-direction: column;

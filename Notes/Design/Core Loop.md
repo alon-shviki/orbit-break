@@ -40,6 +40,8 @@ Picked at the main menu; `GameMode` on the engine, `Reset(seed, mode)`.
 
 Score submission + high score stay **Normal-only** so the single portal leaderboard keeps one meaning — revisit if the portal ever grows per-mode boards.
 
+Menu presentation: the controls and per-mode blurbs live in **hover tooltips** (an "ⓘ How to play" chip plus a tooltip on each mode button) rather than loose lines under the buttons — keeps the menu uncluttered. Pure CSS `:hover` in `MainMenuOverlay.razor` + `app.css`; desktop-only affordance, which matches the mouse-drag / keyboard controls.
+
 ## Open Questions
 
 - ~~Exact gravity-well falloff curve and tuning~~ — answered by simulation (issue #2): inverse-square kept, `Strength` lowered so escape speed from a core (~700 px/s) sits below typical ball speed — wells must deflect, never permanently capture. Method and numbers in [[Tech/Tuning]].
