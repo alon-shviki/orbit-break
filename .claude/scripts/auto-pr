@@ -38,7 +38,9 @@ fi
 # Remove worktree — branch is on remote, local copy no longer needed
 if $IN_WORKTREE; then
   cd "$MAIN_REPO"
-  git worktree remove "$WORKTREE" --force
+  git worktree remove "$WORKTREE" --force 2>/dev/null || true
+  rm -rf "$WORKTREE"          # git leaves ignored bin/obj behind, stranding the dir
+  git worktree prune
   git checkout main
   git pull origin main
   echo "Worktree removed, main is up to date."

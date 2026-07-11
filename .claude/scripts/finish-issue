@@ -45,7 +45,9 @@ gh pr merge "$PR_NUM" --squash
 
 # Clean up worktree and sync main
 cd "$MAIN_REPO"
-git worktree remove "$WORKTREE" --force
+git worktree remove "$WORKTREE" --force 2>/dev/null || true
+rm -rf "$WORKTREE"          # git leaves ignored bin/obj behind, stranding the dir
+git worktree prune
 git checkout main
 git pull origin main
 git push origin --delete "$BRANCH" 2>/dev/null || true
