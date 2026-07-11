@@ -3,7 +3,7 @@
 Concept → playable. Roughly in order.
 
 - [x] Create GitHub repo, push scaffold — **public**, branch protection on `main` (required `build` check)
-- [x] Add `orbit-break` to `REPOS`/`ROOTS` in portal's `start-issue`/`start-task` scripts (slug `ob`, portal PR #23, merged) — plus local copies of the same scripts vendored into this repo's `.claude/scripts/` so issue work here doesn't depend on the portal repo
+- [x] Add `orbit-break` to `REPOS`/`ROOTS` in portal's `start-issue`/`start-task` scripts (slug `ob`, portal PR #23, merged). ~~Plus local copies vendored into this repo's `.claude/scripts/`~~ — **later removed** (portal PR #42): scripts are de-duplicated to the portal only; this repo references them by absolute path (`bash ~/Desktop/game/.claude/scripts/…`), like BH
 - [x] Issue labels, issue templates, CI workflow (`.github/workflows/docker.yml`), branch protection
 - [x] Blazor WASM project scaffold + Canvas render loop bring-up (reused BH's JS interop bridge pattern)
 - [x] Gravity-well physics (inverse-square pull + core bumper — feel-tuning still open, see [[Tech/Engine]])
@@ -18,6 +18,6 @@ Concept → playable. Roughly in order.
 - [x] Playtest & tune: gravity falloff, launch power, paddle speed/width, tier curve (issue #2 — headless bot simulation, see [[Tech/Tuning]]; wells made escapable, recall timer resets on paddle touch, mid-flight clear advance, paddle 760/±70)
 - [x] Fix ball-speed cap + paddle tunneling at high speed (issues #10, #11 — speed cap + swept paddle collision + single-round-trip input interop + rAF busy guard)
 - [x] Moving blocks at higher tiers (issue #4 — tier 4+, stair-stepped mover chance, wall-bouncing drift, hazards never drift)
-- [x] Fix `finish-issue` script: CI-watch retry + merge without `--delete-branch` inside worktrees (issue #15 — same fix should go upstream to the portal's copy)
+- [x] Fix `finish-issue` script: CI-watch retry + merge without `--delete-branch` inside worktrees (issue #15) — **upstreamed to the portal** (PR #36): the fix now lives in the shared `lib.sh` (`wait_for_ci`) that both `auto-pr` and `finish-issue` source
 - [x] Wire into `docker-compose.yml` (`orbit-break-client` :8081, portal PR #23) + nginx proxy for scores/leaderboard (`nginx.conf`)
 - [x] `Games/Orbit Break.md` hub page status update (portal PR #23)
