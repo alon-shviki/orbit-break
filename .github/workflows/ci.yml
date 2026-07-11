@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  ci:
+    uses: alon-shviki/game-portal/.github/workflows/dotnet-ci.yml@main
+    with:
+      project: OrbitBreak.Client/OrbitBreak.Client.csproj
+      tests: OrbitBreak.Tests/OrbitBreak.Tests.csproj
+      image: orbit-break-client
+      context: .
+      dockerfile: OrbitBreak.Client/Dockerfile

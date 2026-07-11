@@ -26,7 +26,7 @@ Same contract every game follows — see the portal's `Tech/Architecture.md` and
 
 ## Build & Run
 
-See `CLAUDE.md` → Commands. `OrbitBreak.Client/Dockerfile` produces the nginx-served image; `.github/workflows/docker.yml` pushes `ghcr.io/alon-shviki/orbit-break-client:latest` on push to `main`.
+See `CLAUDE.md` → Commands. `OrbitBreak.Client/Dockerfile` produces the nginx-served image. CI is `.github/workflows/ci.yml`, a thin caller of the portal's shared reusable workflow (`alon-shviki/game-portal/.github/workflows/dotnet-ci.yml@main`) — it runs cache→format→build→test and, on push to `main`, pushes `ghcr.io/alon-shviki/orbit-break-client:latest`. Required check: `ci / build`.
 
 ## Not Yet Done
 
