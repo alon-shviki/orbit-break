@@ -17,7 +17,7 @@ docker build -f OrbitBreak.Client/Dockerfile .    # nginx-served production imag
 - Auth: user logs in at the portal (`localhost:3000`); JWT passed via URL hash (`#portal_token=...`) on game launch and stored in `localStorage["jwt"]`
 - Scores: game's `nginx.conf` must proxy `POST /api/scores` → `portal-auth:5001/api/scores/orbit-break`
 - Leaderboard: game's `nginx.conf` must proxy `GET /api/leaderboard` → `portal-auth:5001/api/leaderboard/orbit-break`
-- CI: `.github/workflows/docker.yml` builds + tests, pushes `ghcr.io/alon-shviki/orbit-break-client:latest` on push to `main`
+- CI: `.github/workflows/ci.yml` (thin caller of the portal's reusable `dotnet-ci.yml`) builds + tests, pushes `ghcr.io/alon-shviki/orbit-break-client:latest` on push to `main`
 
 ## Hard rules (always)
 - Do **not** add auth endpoints to this game — login is portal-only.
@@ -72,6 +72,8 @@ Never commit directly to `main`.
 ## Setup status
 
 Fully set up (see portal's `.claude/rules/adding-a-game.md`): public GitHub repo, portal scripts + `docker-compose.yml` wired, issue labels/templates, and a `main` ruleset (PR required, `build` status check, no force-push/deletion — matches portal & Bullet Heaven).
+
+`.claude/settings.json` hooks (mirrors Bullet Heaven, minus its agent pipeline): deny-list on `.env`/usersecrets reads, bin/obj edit guard, and a Stop build-gate that compiles `OrbitBreak.Tests` (client builds transitively) after any `.cs`/`.razor` edit — it builds the worktree that was actually edited, not the main checkout.
 
 ## Product decisions
 - **No sound effects** — owner's call (July 2026). Don't re-propose audio.
