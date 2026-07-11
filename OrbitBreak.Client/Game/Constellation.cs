@@ -15,7 +15,8 @@ public static class Constellation
             if (wells.Any(o => (o.X - x) * (o.X - x) + (o.Y - y) * (o.Y - y) < 140 * 140)) continue;
             wells.Add(new Well
             {
-                X = x, Y = y,
+                X = x,
+                Y = y,
                 Core = 14 + rng.NextDouble() * 6,
                 Influence = 130 + 10 * Math.Min(tier, 8),
                 Strength = 6e6 + 5e5 * Math.Min(tier, 8), // sim-tuned: escape speed ~700 px/s from core — wells deflect, not devour (issue #2)
@@ -46,14 +47,17 @@ public static class Constellation
                     continue;
 
                 var roll = rng.NextDouble();
-                var kind = roll < hazardChance                        ? BlockKind.Hazard
-                         : roll < hazardChance + 0.08                 ? BlockKind.Explosive
+                var kind = roll < hazardChance ? BlockKind.Hazard
+                         : roll < hazardChance + 0.08 ? BlockKind.Explosive
                          : roll < hazardChance + 0.08 + armoredChance ? BlockKind.Armored
                          : BlockKind.Standard;
 
                 blocks.Add(new Block
                 {
-                    X = x, Y = y, W = bw, H = bh,
+                    X = x,
+                    Y = y,
+                    W = bw,
+                    H = bh,
                     Kind = kind,
                     Hp = kind == BlockKind.Armored ? 3 : 1,
                     Vx = kind != BlockKind.Hazard && rng.NextDouble() < moverChance

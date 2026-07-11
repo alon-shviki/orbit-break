@@ -16,6 +16,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Format check
+        run: |
+          dotnet format OrbitBreak.Client/OrbitBreak.Client.csproj --verify-no-changes
+          dotnet format OrbitBreak.Tests/OrbitBreak.Tests.csproj --verify-no-changes
+
       - name: Build client
         run: dotnet build OrbitBreak.Client/OrbitBreak.Client.csproj -c Release
 

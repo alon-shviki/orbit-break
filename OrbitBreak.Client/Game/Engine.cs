@@ -22,10 +22,10 @@ public class Block
     public double CenterY => Y + H / 2;
     public int Value => Kind switch
     {
-        BlockKind.Armored   => 30,
+        BlockKind.Armored => 30,
         BlockKind.Explosive => 20,
-        BlockKind.Hazard    => 50,
-        _                   => 10,
+        BlockKind.Hazard => 50,
+        _ => 10,
     };
 }
 
@@ -73,8 +73,8 @@ public class Engine
     public const double PaddleHeight = 12;
     public const double PaddleSpeed = 760;      // px/s, A/D or ←/→ (sim-tuned, issue #2)
     public const double PaddleFling = 0.25;     // fraction of paddle velocity flung into the ball on bounce (sim-tuned, issue #27)
-    public const int    LaunchesPerTier = 5;    // constellation regenerates one tier harder every N launches
-    public const int    StartingBalls = 3;
+    public const int LaunchesPerTier = 5;    // constellation regenerates one tier harder every N launches
+    public const int StartingBalls = 3;
     public const double MaxFlightSeconds = 25;  // trapped-orbit recall, counts as a catch
     public const double MaxBallSpeed = 1200;    // wells can slingshot above launch speed (max 1000) but not runaway
     public const double HazardStep = 30;        // px a hazard block descends per launch
@@ -200,7 +200,7 @@ public class Engine
             if (b.Vx != 0 && b.Alive && !GameOver)
             {
                 b.X += b.Vx * dt;
-                if (b.X < 20)            { b.X = 20;            b.Vx = Math.Abs(b.Vx); }
+                if (b.X < 20) { b.X = 20; b.Vx = Math.Abs(b.Vx); }
                 if (b.X + b.W > Width - 20) { b.X = Width - 20 - b.W; b.Vx = -Math.Abs(b.Vx); }
             }
         }
@@ -265,8 +265,12 @@ public class Engine
                         Combo++;
                         Popups.Add(new TextPopup
                         {
-                            X = w.X, Y = w.Y - w.Core - 14, Life = 1.2, Big = true,
-                            Text = $"COMBO x{Multiplier:0.#}", Color = "#f97316",
+                            X = w.X,
+                            Y = w.Y - w.Core - 14,
+                            Life = 1.2,
+                            Big = true,
+                            Text = $"COMBO x{Multiplier:0.#}",
+                            Color = "#f97316",
                         });
                     }
 
@@ -297,9 +301,9 @@ public class Engine
             ball.Y += ball.Vy * dt;
 
             // walls bounce (left/right/top)
-            if (ball.X < BallR)         { ball.X = BallR;         ball.Vx = Math.Abs(ball.Vx) * 0.98; }
+            if (ball.X < BallR) { ball.X = BallR; ball.Vx = Math.Abs(ball.Vx) * 0.98; }
             if (ball.X > Width - BallR) { ball.X = Width - BallR; ball.Vx = -Math.Abs(ball.Vx) * 0.98; }
-            if (ball.Y < BallR)         { ball.Y = BallR;         ball.Vy = Math.Abs(ball.Vy) * 0.98; }
+            if (ball.Y < BallR) { ball.Y = BallR; ball.Vy = Math.Abs(ball.Vy) * 0.98; }
 
             // paddle: reflects the ball back into play — hit offset from center steers the bounce angle,
             // like classic Breakout/Arkanoid, instead of silently ending the flight.
@@ -402,7 +406,8 @@ public class Engine
         if (_rng.NextDouble() < PowerUpChance)
             PowerUps.Add(new PowerUp
             {
-                X = b.CenterX, Y = b.CenterY,
+                X = b.CenterX,
+                Y = b.CenterY,
                 Kind = (PowerUpKind)_rng.Next(7), // 4 classic power-ups + 3 ball variants (issue #3)
             });
 
@@ -424,12 +429,12 @@ public class Engine
         switch (kind)
         {
             case PowerUpKind.WidePaddle: WidePaddleTime = PowerUpDuration; break;
-            case PowerUpKind.SlowBall:   SlowBallTime = PowerUpDuration; break;
-            case PowerUpKind.ExtraBall:  Balls++; break;
-            case PowerUpKind.Sticky:     StickyCharges++; break;
+            case PowerUpKind.SlowBall: SlowBallTime = PowerUpDuration; break;
+            case PowerUpKind.ExtraBall: Balls++; break;
+            case PowerUpKind.Sticky: StickyCharges++; break;
             // ball variants (issue #3): heavy/phase last until the current (or next) flight ends
-            case PowerUpKind.HeavyBall:  Variant = BallVariant.Heavy; break;
-            case PowerUpKind.PhaseBall:  Variant = BallVariant.Phase; break;
+            case PowerUpKind.HeavyBall: Variant = BallVariant.Heavy; break;
+            case PowerUpKind.PhaseBall: Variant = BallVariant.Phase; break;
             case PowerUpKind.SplitBall:
                 if (InFlight) SplitAll();
                 else PendingSplit = true; // caught between flights → next launch starts doubled
@@ -492,8 +497,10 @@ public class Engine
             var s = 60 + _rng.NextDouble() * 160;
             Particles.Add(new Particle
             {
-                X = x, Y = y,
-                Vx = Math.Cos(a) * s, Vy = Math.Sin(a) * s,
+                X = x,
+                Y = y,
+                Vx = Math.Cos(a) * s,
+                Vy = Math.Sin(a) * s,
                 Life = 0.5 + _rng.NextDouble() * 0.5,
                 Color = color,
             });
@@ -502,9 +509,9 @@ public class Engine
 
     public static string ColorOf(BlockKind k) => k switch
     {
-        BlockKind.Armored   => "#7c3aed",
+        BlockKind.Armored => "#7c3aed",
         BlockKind.Explosive => "#f97316",
-        BlockKind.Hazard    => "#ef4444",
-        _                   => "#38bdf8",
+        BlockKind.Hazard => "#ef4444",
+        _ => "#38bdf8",
     };
 }
