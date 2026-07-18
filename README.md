@@ -116,6 +116,25 @@ Blocks have a seeded 15% chance to drop a pickup (falls straight down, caught wi
 
 `.github/workflows/ci.yml` is a thin caller of the portal's shared reusable workflow (`alon-shviki/game-portal/.github/workflows/dotnet-ci.yml@main`): cache → format → build → test, and on push to `main`, pushes `ghcr.io/alon-shviki/orbit-break-client:latest` (+ sha tag). Required check: `ci / build`.
 
+## Claude Code Setup
+
+Developed with [Claude Code](https://docs.claude.com/en/docs/claude-code), reusing the portal's shared pipeline for issue and task work.
+
+**`CLAUDE.md`** carries the stack commands, the portal integration contract, the hard rules, and the current setup status for this repo.
+
+**`.claude/skills/`**:
+
+- `ci-cd` — the CI/CD mental model shared across the three repos (.NET/Blazor WASM build → Docker image → GHCR)
+- `obsidian-vault` — finds, creates, and organizes notes in this repo's vault using wikilinks
+
+**`.claude/settings.json` hooks** mirror Bullet Heaven's guard-rails: `PreToolUse` blocks hand-edits to `bin/`/`obj/`; `PostToolUse` flags any `.cs`/`.razor` edit; a `Stop` hook compiles `OrbitBreak.Tests` (the client builds transitively) as a build gate, scoped to whichever worktree was actually edited.
+
+## Obsidian
+
+`Notes/` is this repo's own vault. `Home.md` is the quick-start dashboard, `Tasks.md` tracks progress from concept to playable, `Design/` holds the game-design notes (`Core Loop.md`, `Breakout Research.md`), and `Tech/` holds the engineering notes (`Architecture.md`, `Engine.md`, `Tuning.md`).
+
+It's symlinked into the portal vault at `~/Desktop/game/Games/orbit-break`, so the same notes are browsable and editable from either vault — nothing is duplicated between them.
+
 ## Contributing
 
 1. Work happens in a worktree via the portal's agentic scripts — never commit directly to `main`:
